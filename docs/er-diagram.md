@@ -18,15 +18,22 @@
 | [`docs/data-source-policy.md`](data-source-policy.md) | V1.0（704 行） | 可追溯链路、发布门禁 LG-01~LG-14、自检 SQL C-01~C-07 |
 | PRD | V1.0（1090 行） | 5.3 食品详情、5.4 营养成分与计算、5.9 后台内容管理、6.x Agent 设计、11.x 初始化要求 |
 
-> **行数与行号（2026-10 复核）**：上表行数为 2026-10 实测值（`[IO.File]::ReadAllLines().Count`），成稿时的旧值依次为 560 / 490 / 442 / 595 / 680 / 1090 行。本文正文中的 `docs/db/schema.sql:NNN` 行号引用、第 2.1 节的「schema.sql 行」区间、第 9 节校验输出与文件属性表均写于成稿时；`schema.sql` 此后增长到 603 行（新增 `admin_audit_log.detail`、`operation_log.client_key` 等），这些行号已整体漂移，**判据一律以 schema 原文为准**。
+> **行数与行号（2026-10 复核）**：上表行数为 2026-10 实测值（`[IO.File]::ReadAllLines().Count`），成稿时的旧值依次为 560 / 490 / 442 / 595 / 680 / 1090 行。本文正文中的 `docs/db/schema.sql:NNN` 行号引用、第 2.1 节的「schema.sql 行」区间、第 9 节校验输出与文件属性表均写于成稿时；`schema.sql` 此后增长到 603 行（新增 `admin_audit_log.detail`、`operation_log.client_key` 等）。
+>
+> **行号引用已按内容重新对齐（2026-10）**：全文 68 处 `schema.sql` 引用不再靠人工维护。`scripts/fix_erd_links.py` 以成稿时的 schema 修订 `dfbf480` 为旧坐标（560 行，当前 603 行），用 `difflib` 求两版逐行的**逐字对应关系**（595/596 行可一一对上，9 处新增行不参与），把每个旧行号映到内容相同的那个新行号；§4 各表的「定义位置」另按 `CREATE TABLE …) ENGINE=` 实测区间回填。因此：
+>
+> - **判据仍是 schema 原文**：脚本只保证「指到同一行内容」，不保证被引用的那行仍然说明了当初想说的意思。若某个对象被改写（而不只是位置变动），行号依旧有效但语义可能已变，必须回读原文。
+> - **脚本怎么判一行行号对不对**：单看「内容是否改变」会把每一行都判成错的——给 7 张表补 `gd_deleted_key` 生成列后，这些表的每一行都换了行号，内容也确实变了，但引用一处处都没错。所以判据是**内容指纹 + 表归属**：把该行号指着的那行内容（去空白后取 MD5）拿到旧坐标里找落点，看它当时属于哪张表，再与该号现在落在哪张表比对；两者不是同一张表才判为「已指到别的表上去了」。此外 `§4.N` 小节的「定义位置 A-B」被当作该段正文引用的表归属声明（只在本节内生效，`§6`/`§8` 的跨表引用不受它约束）。
+> - **4 处引用成稿时就指错了对象**（`er-diagram.md:212` 的 `food_image.variant_id` 可空 + `fk_image_variant`、`:501` 的 `sys_role` 定义位置、`:786` 的 `knowledge_doc` 定义位置、`:1079` 的 `admin_audit_log.before_json`/`after_json`），现已逐处回读 `schema.sql` 原文裁定并改对。这类错误不能靠行号映射修好——映射只会把一个错误搬成另一个看起来正常的错误。
+> - 改动 schema 后重跑 `python scripts/fix_erd_links.py`（`--check` 只报告、有漂移时 exit=1；`--write` 就地改写）即可回填，不要手工改行号。
 
 ### 1.2 权威性与变更规则
 
 1. **本文的所有字段、类型、约束均逐字取自 `docs/db/schema.sql`。**
 2. **schema 变更时以 [`docs/db/schema.sql`](db/schema.sql) 为准**：本文与 schema 冲突时，视为本文过期，应先改 schema 再回写本文。
 3. 本文**不修改** `docs/db/schema.sql`、`docs/api-contract.md`、`docs/PRD.md`、`README.md`、`docs/ROADMAP.md` 中的任何内容；发现的冲突集中记录在第 6.3 节（文档一致性冲突）与第 8 节（已知缺口），供决策。
-4. 数据库环境：MySQL 8.0+（`utf8mb4` / `utf8mb4_0900_ai_ci`），亦可在 H2 2.x（`MODE=MySQL`）下执行供 `dev` profile 使用（[`docs/db/schema.sql:4-5`](db/schema.sql)）。
-5. 建表脚本开头执行 `SET FOREIGN_KEY_CHECKS = 0;`（[`docs/db/schema.sql:52`](db/schema.sql)），因此**表定义顺序不等于依赖顺序**：`food_image` 在 `food_state_variant` 之前创建却引用后者（[`docs/db/schema.sql:207-231`](db/schema.sql)）。这是脚本的执行细节，不是表关系问题。
+4. 数据库环境：MySQL 8.0+（`utf8mb4` / `utf8mb4_0900_ai_ci`），亦可在 H2 2.x（`MODE=MySQL`）下执行供 `dev` profile 使用（[`docs/db/schema.sql:5-6`](db/schema.sql)）。
+5. 建表脚本开头执行 `SET FOREIGN_KEY_CHECKS = 0;`（[`docs/db/schema.sql:71`](db/schema.sql)），因此**表定义顺序不等于依赖顺序**：`food_image` 在 `food_state_variant` 之前创建却引用后者（[`docs/db/schema.sql:235-258`](db/schema.sql)）。这是脚本的执行细节，不是表关系问题。
 
 ### 1.3 两处“引用路径与实际不符”（本次校验发现）
 
@@ -138,8 +145,8 @@ erDiagram
 
 **关键关系说明**
 
-- `sys_user_role` 是纯关联表：**无代理主键**，以 `(user_id, role_id)` 为联合主键（[`docs/db/schema.sql:92`](db/schema.sql)），天然防重复授权；两条外键均无 `ON DELETE`，删除用户或角色会被数据库拒绝（RESTRICT），符合“审计优先”的取舍。
-- `user_profile` 与 `sys_user` 是**严格的一对零或一**：`user_id` 非空 + `uk_profile_user` 唯一（[`docs/db/schema.sql:128`](db/schema.sql)）。
+- `sys_user_role` 是纯关联表：**无代理主键**，以 `(user_id, role_id)` 为联合主键（[`docs/db/schema.sql:114`](db/schema.sql)），天然防重复授权；两条外键均无 `ON DELETE`，删除用户或角色会被数据库拒绝（RESTRICT），符合“审计优先”的取舍。
+- `user_profile` 与 `sys_user` 是**严格的一对零或一**：`user_id` 非空 + `uk_profile_user` 唯一（[`docs/db/schema.sql:149`](db/schema.sql)）。
 - `user_profile` 的**全部业务字段可空**（`age_range` / `gender` / `height_cm` / `weight_kg` / `activity_level` / `diet_goal` / `allergens` / `diet_preferences`），并单独记录 `consent_at`：这是 R22「个人资料必须由用户主动提供或授权」在结构层的表达——“不填”是合法状态（[`docs/use-cases.md:409`](use-cases.md)）。
 - `sys_auth_token` 同时具备 `token_hash` 唯一、`expires_at` 非空、`revoked_at` 可空三件套，支持“可撤销 + 可过期”令牌。它与 `README.md:38` 的“有状态令牌”一致，但与 [`docs/DESIGN.md:338`](DESIGN.md) ADR-10 的“HMAC-SHA256 签名令牌（通常无状态）”仍不一致（见 8.2 节 G-19）。
 
@@ -206,10 +213,10 @@ erDiagram
 
 **关键关系说明**
 
-- `food` 表的注释明确写着“**只存‘食品是什么’，不存任何营养数值**”（[`docs/db/schema.sql:187`](db/schema.sql)）；`food` 上不存在指向 `nutrition_value` 的任何列，这是 ADR-01 的结构落点。
+- `food` 表的注释明确写着“**只存‘食品是什么’，不存任何营养数值**”（[`docs/db/schema.sql:188`](db/schema.sql)）；`food` 上不存在指向 `nutrition_value` 的任何列，这是 ADR-01 的结构落点。
 - `food_state_variant` 是**营养数据的最小承载单元**：`state` 区分生/熟/去皮/加工，`cooking_method` 区分煮/蒸/炒/炸/烤。
-- `edible_ratio` 可空且注释写明“**缺失时 NULL，不填 1.0**”（[`docs/db/schema.sql:241`](db/schema.sql)）：可食部比例是**事实数据**，用 `1.0` 兜底等于把“未录入”伪装成“100% 可食”。
-- `food_image.variant_id` 可空：`NULL` 的语义是“该图片只展示食品本身，不代表某一形态的营养数据”（[`docs/db/schema.sql:211-212`](db/schema.sql)）。这与“菜品图与原材料图必须可区分”直接相关。
+- `edible_ratio` 可空且注释写明“**缺失时 NULL，不填 1.0**”（[`docs/db/schema.sql:268`](db/schema.sql)）：可食部比例是**事实数据**，用 `1.0` 兜底等于把“未录入”伪装成“100% 可食”。
+- `food_image.variant_id` 可空：`NULL` 的语义是“该图片只展示食品本身，不代表某一形态的营养数据”（[`docs/db/schema.sql:239-257`](db/schema.sql)）。这与“菜品图与原材料图必须可区分”直接相关。
 - `food_category` 支持多级分类（`parent_id` 自引用，顶级为 `NULL`）；图上的 `|o--o{` 表达的就是“分类可空归属父分类、父分类可有多个子分类”。
 
 ### 3.3 图 3 — 营养与来源（域 C，核心图）
@@ -256,10 +263,10 @@ erDiagram
 
 **关键关系说明（本项目的核心）**
 
-- **营养数据无法脱离形态存在**：`nutrition_value.variant_id` 是 `NOT NULL` 外键（[`docs/db/schema.sql:308`](db/schema.sql)、[`docs/db/schema.sql:338`](db/schema.sql)）。想“给食品直接挂热量”在数据库层写不进去。
-- **来源不可为空**：`nutrition_value.source_id` 是 `NOT NULL` 外键（[`docs/db/schema.sql:316`](db/schema.sql)、[`docs/db/schema.sql:340`](db/schema.sql)）。这是“来源可追溯率 100%”（PRD 2.2）的唯一结构前提；若允许 `NULL`，该指标立刻退化为“不可测”。演示数据也必须挂一条 `source_type='DEMO'` 的来源，使“演示”本身成为可追溯信息。
+- **营养数据无法脱离形态存在**：`nutrition_value.variant_id` 是 `NOT NULL` 外键（[`docs/db/schema.sql:340`](db/schema.sql)、[`docs/db/schema.sql:374`](db/schema.sql)）。想“给食品直接挂热量”在数据库层写不进去。
+- **来源不可为空**：`nutrition_value.source_id` 是 `NOT NULL` 外键（[`docs/db/schema.sql:348`](db/schema.sql)、[`docs/db/schema.sql:340`](db/schema.sql)）。这是“来源可追溯率 100%”（PRD 2.2）的唯一结构前提；若允许 `NULL`，该指标立刻退化为“不可测”。演示数据也必须挂一条 `source_type='DEMO'` 的来源，使“演示”本身成为可追溯信息。
 - **单位不落在数据行上**：`nutrition_value` 没有任何 `unit` 列，单位来自 `nutrient.unit` / `base_unit` / `unit_factor`（ADR-03，[`docs/DESIGN.md:263-271`](DESIGN.md)）。汇总时先换算到 `base_unit`，避免 g 与 mg 直接相加。
-- **三态由约束锁定**：`ck_nv_status_amount` CHECK 要求 `MISSING → amount IS NULL`、`ZERO → amount = 0`、`PRESENT → amount IS NOT NULL`（[`docs/db/schema.sql:333-337`](db/schema.sql)）。
+- **三态由约束锁定**：`ck_nv_status_amount` CHECK 要求 `MISSING → amount IS NULL`、`ZERO → amount = 0`、`PRESENT → amount IS NOT NULL`（[`docs/db/schema.sql:368-372`](db/schema.sql)）。
 - **同一形态同一营养素同一口径只允许一条有效记录**：`uk_nv_variant_nutrient(variant_id, nutrient_id, reference_amount, reference_unit, deleted_at, gd_deleted_key)`（[`docs/db/schema.sql:362`](db/schema.sql)），防止汇总时重复计算。末列的 `gd_deleted_key` 是把未删除行的 NULL 归一为哨兵值的生成列，没有它这条唯一键对未删除行不生效（见 4.1 / 4.13 节与 8.1 节 G-01）。
 
 ### 3.4 图 4 — 知识库（域 D）
@@ -295,7 +302,7 @@ erDiagram
 **关键关系说明**
 
 - `knowledge_doc.source_id` **可空**，与 `nutrition_value.source_id` 的 NOT NULL 形成对比：知识文档允许“先入库、后补来源”，但发布时由服务层门禁拦截（`LG-10`：知识来源必须是 A 级或 B 级；[`docs/data-source-policy.md:370`](data-source-policy.md)）。**注意：营养数值没有这个宽容度，两者不可混为一谈。**
-- `knowledge_chunk` 是**检索与引用的最小粒度**（[`docs/db/schema.sql:393`](db/schema.sql)），`uk_chunk_doc_index(doc_id, chunk_index)` 保证文档内序号唯一、上下文拼接不乱序。
+- `knowledge_chunk` 是**检索与引用的最小粒度**（[`docs/db/schema.sql:427`](db/schema.sql)），`uk_chunk_doc_index(doc_id, chunk_index)` 保证文档内序号唯一、上下文拼接不乱序。
 - `knowledge_chunk` 上**没有** `review_status` / `publish_status` / `deleted_at`：分块的可见性完全继承文档，因此“分块级审核”在结构上不可行（见 8.2 节 G-13，对应 T-01/T-02/T-03）。
 - `embedding_model` 是第一版预留的扩展点：关键词检索升级为混合检索时不改表结构（ADR-12，[`docs/DESIGN.md:353-361`](DESIGN.md)）。
 
@@ -351,10 +358,10 @@ erDiagram
 **关键关系说明**
 
 - `chat_session.user_id` **可空**：`NULL = 未登录游客会话`，配合 `guest_key` 实现 PRD 角色 A 的“有限次试用”（R12，[`docs/use-cases.md:399`](use-cases.md)）。
-- `chat_message` 用 `seq` 而非仅靠时间戳排序：同秒并发会乱序，`uk_msg_session_seq(session_id, seq)` 保证会话内序号唯一（[`docs/db/schema.sql:420`](db/schema.sql)、[`docs/db/schema.sql:436`](db/schema.sql)）。
+- `chat_message` 用 `seq` 而非仅靠时间戳排序：同秒并发会乱序，`uk_msg_session_seq(session_id, seq)` 保证会话内序号唯一（[`docs/db/schema.sql:455`](db/schema.sql)、[`docs/db/schema.sql:468`](db/schema.sql)）。
 - `structured_output` 与 `tool_calls` 是 JSON 列，而 `intent` / `model_name` / `latency_ms` / `token_usage` / `status` / `error_code` **刻意保持标量列**，因为它们是统计与验收维度（ADR-11，[`docs/DESIGN.md:351`](DESIGN.md)）。
-- `image_recognition.candidates` 的注释写明候选结构为 `[{foodId, foodName, confidence, reason}]`，**不含任何营养数值字段**（[`docs/db/schema.sql:456`](db/schema.sql)、[`docs/api-contract.md:321`](api-contract.md)）。因此视觉模型与营养事实之间**在结构上就没有通道**（R20）。
-- `image_recognition.session_id` 在 schema 中存在但**没有外键约束**（[`docs/db/schema.sql:449`](db/schema.sql)），这是与全表一致性策略的唯一例外之一，见 8.2 节 G-06（对应 T-07 / A-05）。
+- `image_recognition.candidates` 的注释写明候选结构为 `[{foodId, foodName, confidence, reason}]`，**不含任何营养数值字段**（[`docs/db/schema.sql:489`](db/schema.sql)、[`docs/api-contract.md:321`](api-contract.md)）。因此视觉模型与营养事实之间**在结构上就没有通道**（R20）。
+- `image_recognition.session_id` 在 schema 中存在但**没有外键约束**（[`docs/db/schema.sql:483`](db/schema.sql)），这是与全表一致性策略的唯一例外之一，见 8.2 节 G-06（对应 T-07 / A-05）。
 
 ### 3.6 图 6 — 用户行为与审计（域 F）
 
@@ -406,9 +413,9 @@ erDiagram
 
 - `user_favorite` 的唯一键是 `(user_id, food_id, deleted_at, gd_deleted_key)`（[`docs/db/schema.sql`](db/schema.sql)），注释写明“**含 deleted_at：允许取消收藏后重新收藏**”。**该键对未删除行是真正生效的**：末列的生成列 `gd_deleted_key` 把 NULL 归一为 `'1970-01-01 00:00:00'`（见 8.1 节 G-01，已修复）。
 - `admin_audit_log.target_id` 是**多态指针**（配合 `target_type`），因此没有外键——它可能指向 `food` / `nutrition_value` / `knowledge_doc` 等不同表，这是有意的设计，不是遗漏。
-- `admin_audit_log.operator_name` 是**冗余用户名**：“用户删除后审计仍可读”（[`docs/db/schema.sql:499`](db/schema.sql)）。这是审计表在“引用完整性”与“可读性”之间的取舍。
-- `operation_log.message` 的注释是硬性限制：“注意：敏感信息（对话正文、个人资料、图片路径）禁止写入此处（PRD 8.4 限制日志记录）”（[`docs/db/schema.sql:527`](db/schema.sql)）。**数据库无法强制这一点**，只能靠应用层过滤（R18）。
-- `operation_log.user_id` 与 `admin_audit_log.operator_id` 不同：前者**没有外键**（[`docs/db/schema.sql:521`](db/schema.sql)），因此日志可以记录已被物理删除的用户 id（见 8.2 节 G-07）。
+- `admin_audit_log.operator_name` 是**冗余用户名**：“用户删除后审计仍可读”（[`docs/db/schema.sql:535`](db/schema.sql)）。这是审计表在“引用完整性”与“可读性”之间的取舍。
+- `operation_log.message` 的注释是硬性限制：“注意：敏感信息（对话正文、个人资料、图片路径）禁止写入此处（PRD 8.4 限制日志记录）”（[`docs/db/schema.sql:569`](db/schema.sql)）。**数据库无法强制这一点**，只能靠应用层过滤（R18）。
+- `operation_log.user_id` 与 `admin_audit_log.operator_id` 不同：前者**没有外键**（[`docs/db/schema.sql:558`](db/schema.sql)），因此日志可以记录已被物理删除的用户 id（见 8.2 节 G-07）。
 
 ### 3.7 图 7 — 跨域主干：事实数据与 AI 生成内容在哪里分离
 
@@ -477,7 +484,7 @@ erDiagram
 
 ### 4.1 `sys_user` — 用户账户
 
-表注释：`用户账户（FR-007）`；定义位置 [`docs/db/schema.sql:59-74`](db/schema.sql)。
+表注释：`用户账户（FR-007）`；定义位置 [`docs/db/schema.sql:78-95`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -498,7 +505,7 @@ erDiagram
 
 ### 4.2 `sys_role` — 角色
 
-表注释：`角色（PRD 3.1，四类角色权限必须在设计上可区分）`；定义位置 [`docs/db/schema.sql:77-85`](db/schema.sql)。
+表注释：`角色（PRD 3.1，四类角色权限必须在设计上可区分）`；定义位置 [`docs/db/schema.sql:98-106`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -514,7 +521,7 @@ erDiagram
 
 ### 4.3 `sys_user_role` — 用户角色关联
 
-表注释：`用户角色关联`；定义位置 [`docs/db/schema.sql:88-96`](db/schema.sql)。
+表注释：`用户角色关联`；定义位置 [`docs/db/schema.sql:109-117`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -527,7 +534,7 @@ erDiagram
 
 ### 4.4 `sys_auth_token` — 登录令牌
 
-表注释：`登录令牌（可撤销、可过期）`；定义位置 [`docs/db/schema.sql:99-110`](db/schema.sql)。
+表注释：`登录令牌（可撤销、可过期）`；定义位置 [`docs/db/schema.sql:120-131`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -543,7 +550,7 @@ erDiagram
 
 ### 4.5 `user_profile` — 用户资料与饮食偏好
 
-表注释：`用户资料与饮食偏好（FR-007，全部字段可空=用户可不填）`；定义位置 [`docs/db/schema.sql:113-130`](db/schema.sql)。
+表注释：`用户资料与饮食偏好（FR-007，全部字段可空=用户可不填）`；定义位置 [`docs/db/schema.sql:134-151`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -568,7 +575,7 @@ erDiagram
 
 ### 4.6 `food_category` — 食品分类
 
-表注释：`食品分类（FR-001/FR-002）`；定义位置 [`docs/db/schema.sql:137-153`](db/schema.sql)。
+表注释：`食品分类（FR-001/FR-002）`；定义位置 [`docs/db/schema.sql:158-176`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -590,7 +597,7 @@ erDiagram
 
 ### 4.7 `food` — 食品主表
 
-表注释：`食品主表（FR-003）— 只存"食品是什么"，不存任何营养数值`；定义位置 [`docs/db/schema.sql:156-187`](db/schema.sql)。
+表注释：`食品主表（FR-003）— 只存"食品是什么"，不存任何营养数值`；定义位置 [`docs/db/schema.sql:179-212`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -626,7 +633,7 @@ erDiagram
 
 ### 4.8 `food_alias` — 食品别名
 
-表注释：`食品别名（FR-002 搜索范围：中文别名、英文名称）`；定义位置 [`docs/db/schema.sql:190-205`](db/schema.sql)。
+表注释：`食品别名（FR-002 搜索范围：中文别名、英文名称）`；定义位置 [`docs/db/schema.sql:215-232`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -641,11 +648,11 @@ erDiagram
 
 键与索引：`PRIMARY KEY (id)`；`uk_alias_food UNIQUE (food_id, alias, deleted_at, gd_deleted_key)`；`KEY idx_alias_alias (alias)`。
 外键：`fk_alias_food (food_id) → food(id)`。
-schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食品下同一别名不重复；跨食品同名别名在服务层做冲突校验**。
+schema 行内注释（[`docs/db/schema.sql:229`](db/schema.sql)）：**同一食品下同一别名不重复；跨食品同名别名在服务层做冲突校验**。
 
 ### 4.9 `food_image` — 食品图片
 
-表注释：`食品图片（FR-003 图片类型；菜品图与原材料图必须可区分）`；定义位置 [`docs/db/schema.sql:208-231`](db/schema.sql)。
+表注释：`食品图片（FR-003 图片类型；菜品图与原材料图必须可区分）`；定义位置 [`docs/db/schema.sql:235-258`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -670,7 +677,7 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 
 ### 4.10 `food_state_variant` — 食品形态（营养数据的最小承载单元）
 
-表注释：`食品形态 [D1]：生/熟/去皮/加工分别建档，营养数据只挂在此表上`；定义位置 [`docs/db/schema.sql:235-254`](db/schema.sql)。
+表注释：`食品形态 [D1]：生/熟/去皮/加工分别建档，营养数据只挂在此表上`；定义位置 [`docs/db/schema.sql:262-283`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -696,7 +703,7 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 
 ### 4.11 `nutrient` — 营养素字典
 
-表注释：`营养素字典 [D3]：指标单位在此定义，扩展新指标只需插入数据（PRD 9.5）`；定义位置 [`docs/db/schema.sql:261-283`](db/schema.sql)。
+表注释：`营养素字典 [D3]：指标单位在此定义，扩展新指标只需插入数据（PRD 9.5）`；定义位置 [`docs/db/schema.sql:290-312`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -720,7 +727,7 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 
 ### 4.12 `data_source` — 数据来源
 
-表注释：`数据来源 [D4]：营养数据可追溯率 100% 的基础`；定义位置 [`docs/db/schema.sql:314-334`](db/schema.sql)。
+表注释：`数据来源 [D4]：营养数据可追溯率 100% 的基础`；定义位置 [`docs/db/schema.sql:315-334`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -743,7 +750,7 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 
 ### 4.13 `nutrition_value` — 营养数值（三态）
 
-表注释：`营养数值 [D2][D3][D4]：缺失/零/有值三态，单位归一，来源必填`；定义位置 [`docs/db/schema.sql:306-341`](db/schema.sql)。
+表注释：`营养数值 [D2][D3][D4]：缺失/零/有值三态，单位归一，来源必填`；定义位置 [`docs/db/schema.sql:338-375`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -768,7 +775,7 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 | `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``。把未删除行的 `deleted_at` NULL 归一为哨兵值 `1970-01-01 00:00:00`，让 `uk_nv_variant_nutrient (variant_id, nutrient_id, reference_amount, reference_unit, deleted_at, gd_deleted_key)` 对未删除行**真正生效**——唯一索引里 NULL 互不相等，只写 `deleted_at` 时同一形态同一指标同一口径可重复录入，**汇总时会重复计算**；软删后哨兵值不同，故仍可重建同一口径的记录。完整机理与代价（同秒两次软删被拒）见 4.1 节；守护 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` |
 
 键与索引：`PRIMARY KEY (id)`；`uk_nv_variant_nutrient UNIQUE (variant_id, nutrient_id, reference_amount, reference_unit, deleted_at, gd_deleted_key)`；`KEY idx_nv_variant (variant_id)`；`KEY idx_nv_nutrient (nutrient_id)`；`KEY idx_nv_source (source_id)`。
-CHECK：`ck_nv_status_amount`（[`docs/db/schema.sql:333-337`](db/schema.sql)）：
+CHECK：`ck_nv_status_amount`（[`docs/db/schema.sql:368-372`](db/schema.sql)）：
 ```sql
 CONSTRAINT `ck_nv_status_amount` CHECK (
   (`value_status` = 'MISSING' AND `amount` IS NULL)
@@ -783,7 +790,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.14 `knowledge_doc` — 营养知识文档
 
-表注释：`营养知识文档（FR-010）`；定义位置 [`docs/db/schema.sql:348-375`](db/schema.sql)。
+表注释：`营养知识文档（FR-010）`；定义位置 [`docs/db/schema.sql:382-409`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -814,7 +821,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.15 `knowledge_chunk` — 知识分块
 
-表注释：`知识分块 [索引单元]：检索与引用均以 chunk 为最小粒度`；定义位置 [`docs/db/schema.sql:378-393`](db/schema.sql)。
+表注释：`知识分块 [索引单元]：检索与引用均以 chunk 为最小粒度`；定义位置 [`docs/db/schema.sql:412-427`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -835,7 +842,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.16 `chat_session` — 问答会话
 
-表注释：`问答会话（FR-005 多轮对话 / FR-008 历史记录）`；定义位置 [`docs/db/schema.sql:400-414`](db/schema.sql)。
+表注释：`问答会话（FR-005 多轮对话 / FR-008 历史记录）`；定义位置 [`docs/db/schema.sql:434-448`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -854,7 +861,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.17 `chat_message` — 对话消息
 
-表注释：`对话消息（PRD 6.4 结构化输出 / 6.5 异常处理记录）`；定义位置 [`docs/db/schema.sql:417-439`](db/schema.sql)。
+表注释：`对话消息（PRD 6.4 结构化输出 / 6.5 异常处理记录）`；定义位置 [`docs/db/schema.sql:451-473`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -880,7 +887,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.18 `image_recognition` — 图片识别记录
 
-表注释：`图片识别记录（FR-006，含状态/耗时/错误信息）`；定义位置 [`docs/db/schema.sql:446-470`](db/schema.sql)。
+表注释：`图片识别记录（FR-006，含状态/耗时/错误信息）`；定义位置 [`docs/db/schema.sql:480-504`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -908,7 +915,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.19 `user_favorite` — 食品收藏
 
-表注释：`食品收藏（FR-008）`；定义位置 [`docs/db/schema.sql:477-489`](db/schema.sql)。
+表注释：`食品收藏（FR-008）`；定义位置 [`docs/db/schema.sql:511-525`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -924,7 +931,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.20 `admin_audit_log` — 后台操作审计
 
-表注释：`后台操作审计（PRD 9.3）`；定义位置 [`docs/db/schema.sql:531-548`](db/schema.sql)。
+表注释：`后台操作审计（PRD 9.3）`；定义位置 [`docs/db/schema.sql:532-548`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -945,7 +952,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.21 `operation_log` — 操作日志
 
-表注释：`操作日志（限流、错误统计、模型调用统计）`；定义位置 [`docs/db/schema.sql:554-577`](db/schema.sql)。
+表注释：`操作日志（限流、错误统计、模型调用统计）`；定义位置 [`docs/db/schema.sql:555-577`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -1064,27 +1071,27 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 | 编号 | 不变量 | 强制层 | 落点/依据 | 说明 |
 | --- | --- | --- | --- | --- |
-| **INV-01** | 「未知 ≠ 零」：`MISSING` 必须 `amount IS NULL`、`ZERO` 必须 `amount = 0`、`PRESENT` 必须 `amount` 非空 | **数据库强制** | `ck_nv_status_amount`（[`docs/db/schema.sql:333-337`](db/schema.sql)） | 应用层漏改会被数据库直接拒绝。**副作用**：该 CHECK 也顺带限制了 `value_status` 的取值域（任何非三态值配 NULL / 0 / 非零都会被拒），所以 `value_status` 虽只是 `VARCHAR(16)`，实际无法写入第四个状态 |
-| **INV-02** | 每条营养数值必须有来源 | **数据库强制** | `source_id` NOT NULL + `fk_nv_source`（[`docs/db/schema.sql:316`](db/schema.sql)、[`docs/db/schema.sql:340`](db/schema.sql)）；接口层再兜一道：`PUT /admin/variants/{id}/nutrition` 缺 `sourceId` 必须 `40001`（[`docs/api-contract.md:465-466`](api-contract.md)） | “来源可追溯率 100%”的唯一结构前提 |
-| **INV-03** | 营养数据不能脱离食品形态 | **数据库强制** | `variant_id` NOT NULL + `fk_nv_variant`（[`docs/db/schema.sql:308`](db/schema.sql)、[`docs/db/schema.sql:338`](db/schema.sql)） | 防止生食/熟食数据混用 |
+| **INV-01** | 「未知 ≠ 零」：`MISSING` 必须 `amount IS NULL`、`ZERO` 必须 `amount = 0`、`PRESENT` 必须 `amount` 非空 | **数据库强制** | `ck_nv_status_amount`（[`docs/db/schema.sql:368-372`](db/schema.sql)） | 应用层漏改会被数据库直接拒绝。**副作用**：该 CHECK 也顺带限制了 `value_status` 的取值域（任何非三态值配 NULL / 0 / 非零都会被拒），所以 `value_status` 虽只是 `VARCHAR(16)`，实际无法写入第四个状态 |
+| **INV-02** | 每条营养数值必须有来源 | **数据库强制** | `source_id` NOT NULL + `fk_nv_source`（[`docs/db/schema.sql:348`](db/schema.sql)、[`docs/db/schema.sql:340`](db/schema.sql)）；接口层再兜一道：`PUT /admin/variants/{id}/nutrition` 缺 `sourceId` 必须 `40001`（[`docs/api-contract.md:465-466`](api-contract.md)） | “来源可追溯率 100%”的唯一结构前提 |
+| **INV-03** | 营养数据不能脱离食品形态 | **数据库强制** | `variant_id` NOT NULL + `fk_nv_variant`（[`docs/db/schema.sql:340`](db/schema.sql)、[`docs/db/schema.sql:374`](db/schema.sql)） | 防止生食/熟食数据混用 |
 | INV-04 | 同一形态同一指标同一参考口径只允许一条有效记录 | **数据库强制** | `uk_nv_variant_nutrient` | 防止汇总重复计算 |
 | INV-05 | 删除是逻辑删除，`deleted_at` 一旦写入即对公开接口不可见 | 数据库（列存在）+ 应用层（查询条件） | MyBatis-Plus 逻辑删除全局配置；`LG-14`（[`docs/data-source-policy.md:374`](data-source-policy.md)） | 数据库不会自动过滤已删除行，**漏写条件即泄漏** |
 | INV-06 | 单位必须与 `nutrient` 字典一致，跨单位汇总先换算到 `base_unit` | 应用层 | `nutrient.unit` / `base_unit` / `unit_factor`（ADR-03）；`NutritionCalculator` 单点使用 | 结构上 `nutrition_value` 没有 `unit` 列，因此“写错单位”只能由服务层拦 |
-| INV-07 | `edible_ratio` 缺失时保持 `NULL`，**不得用 `1.0` 兜底** | 应用层 | schema 注释（[`docs/db/schema.sql:241`](db/schema.sql)）；无 CHECK | 用 `1.0` 兜底等于把“未录入”伪装成“100% 可食”，是可食部计算的事实性错误来源 |
-| INV-08 | 别名不得劫持其他食品的标准名，跨食品同名冲突返回 `40901` | 应用层 | schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）；错误码（[`docs/api-contract.md:72`](api-contract.md)）；R08、T-04 | 表内唯一键管不到跨食品 |
-| INV-09 | 同一食品的默认形态应唯一 | 应用层（**无数据库约束**） | `food_state_variant.is_default`（[`docs/db/schema.sql:243`](db/schema.sql)）；A-06 | 已知待改进点，见 G-04 |
-| INV-10 | `state=COOKED` 时 `cooking_method` 必填 | 应用层（**无 CHECK、无触发器**） | schema 注释（[`docs/db/schema.sql:239`](db/schema.sql)）；UC-22 异常流程 | 见 G-09 |
+| INV-07 | `edible_ratio` 缺失时保持 `NULL`，**不得用 `1.0` 兜底** | 应用层 | schema 注释（[`docs/db/schema.sql:268`](db/schema.sql)）；无 CHECK | 用 `1.0` 兜底等于把“未录入”伪装成“100% 可食”，是可食部计算的事实性错误来源 |
+| INV-08 | 别名不得劫持其他食品的标准名，跨食品同名冲突返回 `40901` | 应用层 | schema 行内注释（[`docs/db/schema.sql:229`](db/schema.sql)）；错误码（[`docs/api-contract.md:72`](api-contract.md)）；R08、T-04 | 表内唯一键管不到跨食品 |
+| INV-09 | 同一食品的默认形态应唯一 | 应用层（**无数据库约束**） | `food_state_variant.is_default`（[`docs/db/schema.sql:270`](db/schema.sql)）；A-06 | 已知待改进点，见 G-04 |
+| INV-10 | `state=COOKED` 时 `cooking_method` 必填 | 应用层（**无 CHECK、无触发器**） | schema 注释（[`docs/db/schema.sql:268`](db/schema.sql)）；UC-22 异常流程 | 见 G-09 |
 | INV-11 | 审核 ≠ 发布：两个状态分别可控 | 数据库（两列分离）+ 应用层（两个接口、前台查询同时带两条件） | ADR-06（[`docs/DESIGN.md:293-301`](DESIGN.md)）；`POST /admin/foods/{id}/review` 与 `/publish`（[`docs/api-contract.md:451-452`](api-contract.md)）；R10 | 列分离是结构保证；“未审核不得发布”“草稿不对前台可见”仍靠服务层与查询条件 |
 | INV-12 | 未审核 / 未发布 / 已下架 / 已过期的内容对前台不可见 | 应用层（查询条件） | 食品：`publish_status='PUBLISHED' AND review_status='APPROVED' AND deleted_at IS NULL`（[`docs/api-contract.md:350`](api-contract.md)）；知识：额外加 `valid_until`（[`docs/api-contract.md:411`](api-contract.md)）；R09/R15/R16 | 数据库不提供“行级可见性” |
-| INV-13 | 后台内容修改必须留痕（改前/改后） | 应用层（同事务写入） | `admin_audit_log.before_json` / `after_json`（[`docs/db/schema.sql:503-504`](db/schema.sql)）；行内 `created_by` / `updated_by` / `reviewed_by`（`[D7]`）；R17 | 表结构提供了载体，不提供“必须写” |
-| INV-14 | `operation_log` 禁止写入对话正文、个人资料、图片路径 | 应用层（**数据库无法强制**） | schema 行内注释（[`docs/db/schema.sql:527`](db/schema.sql)）；R18；`SensitiveDataMasker`（[`docs/DESIGN.md:372`](DESIGN.md)） | 只能靠写入前过滤与代码评审 |
+| INV-13 | 后台内容修改必须留痕（改前/改后） | 应用层（同事务写入） | `admin_audit_log.before_json` / `after_json`（[`docs/db/schema.sql:540-541`](db/schema.sql)）；行内 `created_by` / `updated_by` / `reviewed_by`（`[D7]`）；R17 | 表结构提供了载体，不提供“必须写” |
+| INV-14 | `operation_log` 禁止写入对话正文、个人资料、图片路径 | 应用层（**数据库无法强制**） | schema 行内注释（[`docs/db/schema.sql:569`](db/schema.sql)）；R18；`SensitiveDataMasker`（[`docs/DESIGN.md:372`](DESIGN.md)） | 只能靠写入前过滤与代码评审 |
 | INV-15 | `MISSING` 不参与求和，只进入 `missingNutrients` | 应用层 | [`docs/api-contract.md:253`](api-contract.md)；UC-31 | 计算的正确性依赖纯函数实现 |
 | INV-16 | 计算类结果必须标注为估算值 | 应用层（契约恒定值） | `estimated` 恒为 `true` + `estimatedReason`（[`docs/api-contract.md:242-252`](api-contract.md)）；R21 | 字段恒定由后端组装保证 |
-| INV-17 | 视觉模型只产出候选食品，不产出营养数值 | 数据库（结构上无字段）+ 应用层（DTO 无字段） | `candidates` 结构（[`docs/db/schema.sql:456`](db/schema.sql)）；`ImageRecognitionResult.candidates`（[`docs/api-contract.md:321`](api-contract.md)）；R20 | 这是**结构级**保证：没有存放营养数值的列 |
+| INV-17 | 视觉模型只产出候选食品，不产出营养数值 | 数据库（结构上无字段）+ 应用层（DTO 无字段） | `candidates` 结构（[`docs/db/schema.sql:489`](db/schema.sql)）；`ImageRecognitionResult.candidates`（[`docs/api-contract.md:321`](api-contract.md)）；R20 | 这是**结构级**保证：没有存放营养数值的列 |
 | INV-18 | 引用来源不得虚构，`sources` 由工具层注入 | 应用层（架构强制） | `sources` 由工具层注入、模型输出一律丢弃（[`docs/api-contract.md:300`](api-contract.md)）；R14 | 模型无法写入来源字段 |
 | INV-19 | 越权防护：一律以令牌中的 `userId` 为准 | 应用层 | [`docs/api-contract.md:438-439`](api-contract.md)；R13；UC-37 | 数据库层面无法表达“只能看自己的行” |
 | INV-20 | 上传文件必须校验 MIME + 文件头魔数，不能只信扩展名 | 应用层 | [`docs/api-contract.md:421-422`](api-contract.md)；R19；`FileValidator`（[`docs/DESIGN.md:379`](DESIGN.md)） | `image_recognition.mime_type` 非空只是记录，不是校验 |
-| INV-21 | 个人资料必须由用户主动提供或明确授权 | 数据库（字段全可空，结构允许“不填”）+ 应用层（写 `consent_at`） | [`docs/db/schema.sql:116-124`](db/schema.sql)；R22 | 结构只保证“可空”，授权语义靠业务写入 |
+| INV-21 | 个人资料必须由用户主动提供或明确授权 | 数据库（字段全可空，结构允许“不填”）+ 应用层（写 `consent_at`） | [`docs/db/schema.sql:117-124`](db/schema.sql)；R22 | 结构只保证“可空”，授权语义靠业务写入 |
 | INV-22 | 发布门禁的具体条目（A 级来源才可对外、审核人不得与录入人相同、知识文档必须有 `valid_until` 等） | 应用层 | `LG-02` / `LG-06` / `LG-08`~`LG-13`（[`docs/data-source-policy.md:352-374`](data-source-policy.md)） | 这些规则**数据库只提供一部分支撑**（如 NOT NULL、CHECK），其余全部是服务层门禁 |
 
 ### 6.3 文档一致性冲突（以 `docs/db/schema.sql` 为准）
@@ -1126,7 +1133,7 @@ flowchart LR
 | 环 | 位置 | 「未知」如何被保住 | 强制点与依据 | 该环失效的后果 |
 | --- | --- | --- | --- | --- |
 | **环 0** | 录入（后台） | 录入者必须在 `PRESENT` / `ZERO` / `MISSING` 中显式选择，并填/不填 `amount` | 缺 `sourceId` → `40001` 硬拒绝（[`docs/api-contract.md:465-466`](api-contract.md)）；`value_status` 与 `amount` 不一致 → 数据库 CHECK 报错（UC-23） | 数值无出处，或三态被随手写成 0 |
-| **环 1** | 存储（数据库） | `value_status` 与 `amount` 两列共同表达三态；`MISSING` 行的 `amount` **物理上就是 NULL** | `ck_nv_status_amount`（[`docs/db/schema.sql:333-337`](db/schema.sql)）；`variant_id` / `source_id` NOT NULL + 三条外键 | 数据库层出现“0 与未知混同”，下游无法分辨 |
+| **环 1** | 存储（数据库） | `value_status` 与 `amount` 两列共同表达三态；`MISSING` 行的 `amount` **物理上就是 NULL** | `ck_nv_status_amount`（[`docs/db/schema.sql:368-372`](db/schema.sql)）；`variant_id` / `source_id` NOT NULL + 三条外键 | 数据库层出现“0 与未知混同”，下游无法分辨 |
 | **环 2** | 查询与组装（Service） | 按 `display_order` 组装表格，统计 `missingCount`，置 `incomplete` | `[D3]` 单位来自字典；缺失行**不回填 0**（[`docs/DESIGN.md:271`](DESIGN.md)） | 汇总时把缺失当 0 参与求和 |
 | **环 3** | 计算（确定性纯函数） | `MISSING` **不进入 `items`**，只列入 `missingNutrients` | `NutritionCalculator` 纯函数（ADR；UC-06）；契约（[`docs/api-contract.md:253`](api-contract.md)） | 摄入量被算低，且用户看不到少算了什么 |
 | **环 4** | 契约（API 响应） | `valueStatus` / `amount` / `displayText` 三件套；列表项用 `energyAvailable=false` + `energyKcal=null`；计算接口用 `missingNutrients`；Agent 用 `uncertainty: DATA_MISSING` | [`docs/api-contract.md:107-108`](api-contract.md)、[`docs/api-contract.md:209-217`](api-contract.md)、[`docs/api-contract.md:287`](api-contract.md) | 前端拿不到“这是缺失”的信号，只能显示 0 |
@@ -1158,21 +1165,21 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- |
 | ~~**G-01**~~ | ~~唯一键含 `deleted_at` 后**对未删除行失效**~~ → ✅ **已修复（2026-10 修订）** | **原现状**：7 张表的 8 个唯一键把 `deleted_at` 作为最后一列（`uk_user_username`、`uk_user_email`、`uk_category_slug`、`uk_food_code`、`uk_alias_food`、`uk_variant_food_state`、`uk_nv_variant_nutrient`、`uk_fav_user_food`）。在 MySQL / H2 中 **`NULL` 互不相等**，因此两行 `deleted_at IS NULL` 的记录可以拥有完全相同的键值 —— 唯一性**没有被真正强制** | **原风险**：①同一 `code` 可出现多条未删除食品；②同一用户可出现两条 `username` 相同记录；③同一形态同一营养素可重复录入，`uk_nv_variant_nutrient` 名存实亡，**汇总时重复计算**；④`docs/DESIGN.md` ADR-08 当时写“MySQL 中 NULL 不参与唯一性比较，正好使未删除行保持互斥”，该判断与数据库实际行为**相反** | **已按建议①修复**：7 张表各新增生成列 `gd_deleted_key`（MySQL：`DATETIME GENERATED ALWAYS AS (IFNULL(\`deleted_at\`, '1970-01-01 00:00:00')) VIRTUAL`；H2：`TIMESTAMP AS (IFNULL(\`deleted_at\`, TIMESTAMP '1970-01-01 00:00:00'))`），并把该列追加到上述 8 个唯一键末尾。ADR-08 的相反判断已删除线标注纠正。**遗留**：①`deleted_at` 必须是 NULL 才表示未删除（哨兵值写法未采用）；②同秒两次软删会被唯一键拒绝，属可接受的宁严勿松 | 已由 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` 卡住（含 `nullSafeCount == 8` 期望值） |
 | ~~**G-02**~~ | ~~`value_status` 实际是 `VARCHAR(16)` 而非 ENUM~~ → ✅ **已修复（2026-10 修订）** | **原现状**：schema 头部设计说明与 ADR-02 都写作 `ENUM('PRESENT','ZERO','MISSING')`，实际列是 `VARCHAR(16)` | **原风险**：取值域仅由 `ck_nv_status_amount` **间接**限制 | **已按建议（改文档）修复**：`docs/db/schema.sql` 头部 `[D2]`、`docs/DESIGN.md` ADR-02 均改为 `VARCHAR(16) NOT NULL DEFAULT 'MISSING'`，并写明**为何不能用 ENUM**（H2 2.x `MODE=MySQL` 不支持 ENUM，而 dev/test 必须能在 H2 建同一套表）。取值域由 `ck_nv_status_amount`（语义）+ 应用层 Java 枚举（取值）双重兜住 | 原关联 C-1；见 `docs/DESIGN.md` ADR-02「取值域类型说明」 |
-| **G-03** | `food` 表**没有 `source_id`** | `suitable_for`（适宜人群）、`cautions`（注意事项）、`common_usage`、`origin` 等字段都直接挂在 `food` 上，而这些恰恰是最需要出处的内容；`food` 表没有任何来源列 | 这些字段无法自动校验来源，只能靠内容管理员自觉与 `admin_audit_log` 事后追溯；“有依据时填写”（[`docs/db/schema.sql:167`](db/schema.sql)）中的“有依据”**没有结构载体** | ①为 `food` 增加可空 `source_id`（或单独的 `food_source` 关联表，支持一条食品多来源），并配套发布门禁；②若坚持不加列，则必须在 `data-source-policy.md` 的 §3.2 明确“食品基础信息不建来源、由审计留痕替代”，并在后台 UI 强制填写引用说明 | 政策 §3.2 |
-| **G-04** | `food_state_variant.is_default` 无唯一约束 | 同一食品可以有任意多行 `is_default = 1`（[`docs/db/schema.sql:243`](db/schema.sql)） | 详情页“默认形态”不确定，`variantId` 省略时的计算结果随查询顺序变化（同一份数据两次访问可能给出不同形态的营养值） | 服务层设置新默认时清除旧的，并补并发测试；数据库侧可用生成列 `default_flag AS (IF(is_default=1, food_id, NULL)) STORED` + 唯一索引实现 | A-06 |
+| **G-03** | `food` 表**没有 `source_id`** | `suitable_for`（适宜人群）、`cautions`（注意事项）、`common_usage`、`origin` 等字段都直接挂在 `food` 上，而这些恰恰是最需要出处的内容；`food` 表没有任何来源列 | 这些字段无法自动校验来源，只能靠内容管理员自觉与 `admin_audit_log` 事后追溯；“有依据时填写”（[`docs/db/schema.sql:190`](db/schema.sql)）中的“有依据”**没有结构载体** | ①为 `food` 增加可空 `source_id`（或单独的 `food_source` 关联表，支持一条食品多来源），并配套发布门禁；②若坚持不加列，则必须在 `data-source-policy.md` 的 §3.2 明确“食品基础信息不建来源、由审计留痕替代”，并在后台 UI 强制填写引用说明 | 政策 §3.2 |
+| **G-04** | `food_state_variant.is_default` 无唯一约束 | 同一食品可以有任意多行 `is_default = 1`（[`docs/db/schema.sql:270`](db/schema.sql)） | 详情页“默认形态”不确定，`variantId` 省略时的计算结果随查询顺序变化（同一份数据两次访问可能给出不同形态的营养值） | 服务层设置新默认时清除旧的，并补并发测试；数据库侧可用生成列 `default_flag AS (IF(is_default=1, food_id, NULL)) STORED` + 唯一索引实现 | A-06 |
 | **G-05** | `food_image.is_cover` 无唯一约束 | 同一食品可以有多张 `is_cover = 1`（`food_image` **完全没有 UNIQUE 键**） | 封面图不确定，列表页与详情页可能展示不同图片 | 与 G-04 同法：服务层保证唯一 + 生成列唯一索引 | A-06 同类 |
-| **G-06** | `image_recognition.session_id` 无外键 | 列存在、注释说明“识别后继续追问时关联会话”，但没有 `FOREIGN KEY`（[`docs/db/schema.sql:449`](db/schema.sql)） | 会话被删除后留下悬空引用；与其他 22 条外键的一致性策略不一致，排查数据问题时无法用连接直接定位 | 补 `fk_recog_session (session_id) → chat_session(id)`；若有意不约束（例如为保留识别审计而允许会话清理），必须在 schema 注释中写明理由 | T-07 / A-05 |
-| **G-07** | `operation_log.user_id` 无外键 | 日志表持 `user_id` 但无约束（[`docs/db/schema.sql:521`](db/schema.sql)） | 与 G-06 同类的悬空引用；写错 id 时无人发现 | 明确立场：日志表**故意**不建外键以支持留存（则写进注释）；或补外键并接受“用户物理删除受限” | — |
-| **G-08** | `food_image.variant_id` 不校验形态属于同一食品 | `food_image` 同时有 `food_id`（NOT NULL）与 `variant_id`（可空），两者各自独立外键（[`docs/db/schema.sql:229-230`](db/schema.sql)） | 完全可以把 A 食品的图片挂到 B 食品的形态上；一旦如此，“菜品图与原材料图必须可区分”的保证被绕过，进而可能把烹饪成品的图当成原材料数据的配图 | 服务层校验 `variant.food_id == image.food_id`（必须在新增/编辑图片接口实现）；数据库侧可用复合外键（`food_state_variant` 增加 `UNIQUE (id, food_id)`，`food_image` 建 `(variant_id, food_id)` 复合外键） | PRD 5.3 图片类型 |
+| **G-06** | `image_recognition.session_id` 无外键 | 列存在、注释说明“识别后继续追问时关联会话”，但没有 `FOREIGN KEY`（[`docs/db/schema.sql:483`](db/schema.sql)） | 会话被删除后留下悬空引用；与其他 22 条外键的一致性策略不一致，排查数据问题时无法用连接直接定位 | 补 `fk_recog_session (session_id) → chat_session(id)`；若有意不约束（例如为保留识别审计而允许会话清理），必须在 schema 注释中写明理由 | T-07 / A-05 |
+| **G-07** | `operation_log.user_id` 无外键 | 日志表持 `user_id` 但无约束（[`docs/db/schema.sql:558`](db/schema.sql)） | 与 G-06 同类的悬空引用；写错 id 时无人发现 | 明确立场：日志表**故意**不建外键以支持留存（则写进注释）；或补外键并接受“用户物理删除受限” | — |
+| **G-08** | `food_image.variant_id` 不校验形态属于同一食品 | `food_image` 同时有 `food_id`（NOT NULL）与 `variant_id`（可空），两者各自独立外键（[`docs/db/schema.sql:230-231`](db/schema.sql)） | 完全可以把 A 食品的图片挂到 B 食品的形态上；一旦如此，“菜品图与原材料图必须可区分”的保证被绕过，进而可能把烹饪成品的图当成原材料数据的配图 | 服务层校验 `variant.food_id == image.food_id`（必须在新增/编辑图片接口实现）；数据库侧可用复合外键（`food_state_variant` 增加 `UNIQUE (id, food_id)`，`food_image` 建 `(variant_id, food_id)` 复合外键） | PRD 5.3 图片类型 |
 | **G-09** | `cooking_method` 的“COOKED 时必填”无强制；且该列可空会让唯一键在同一 `COOKED+NULL` 上重复 | 唯一键是 `(food_id, state, cooking_method, deleted_at, gd_deleted_key)`，而 `cooking_method` 可空（[`docs/db/schema.sql`](db/schema.sql) 的 `food_state_variant`） | ①`state='COOKED'` 且 `cooking_method IS NULL` 可写入，生熟形态无法区分；②~~因 NULL 语义，同一食品可插入**多条** `state='COOKED'` 且 `cooking_method IS NULL` 的形态，唯一键失效~~ —— **这一点已被 G-01 的 `gd_deleted_key` 修复覆盖**：键里不再有互通不相等的 NULL 列，同一 `(food_id,'COOKED',NULL)` 的第二条会被拒绝（当 `deleted_at` 也同为 NULL 时）。剩下的只有第①点：语义上“COOKED 必须有烹饪方式”仍未被约束 | 服务层强校验（UC-22 已要求 `40001`）；数据库侧可用 `CHECK (state <> 'COOKED' OR cooking_method IS NOT NULL)` | UC-22；原与 G-01 同源，G-01 已修 |
 | **G-10** | 缺少数值范围 CHECK | 没有 `amount >= 0`、`reference_amount > 0`、`edible_ratio` 取值范围的约束 | 可写入负的营养数值（例如 `amount = -5` 且 `value_status='PRESENT'` 能通过 CHECK）；`edible_ratio` 可写 1.5 或负数 | 增加 `CHECK (amount IS NULL OR amount >= 0)`、`CHECK (reference_amount > 0)`、`CHECK (edible_ratio IS NULL OR (edible_ratio > 0 AND edible_ratio <= 1))` | — |
-| **G-11** | `food_alias` 跨食品同名别名冲突无数据库约束 | 表内唯一键只覆盖“同一食品内不重复”；schema 注释明确写“跨食品同名别名在服务层做冲突校验”（[`docs/db/schema.sql:201`](db/schema.sql)） | “别名不能随意覆盖其他食品的标准名称”（PRD 5.2）这一明文业务规则仅靠服务层自觉；一旦漏实现，搜索会把用户导向错误食品 | 服务层必须返回 `40901` 并补单元测试；长期可加触发器或应用启动期全量校验 | T-04 / R08 |
+| **G-11** | `food_alias` 跨食品同名别名冲突无数据库约束 | 表内唯一键只覆盖“同一食品内不重复”；schema 注释明确写“跨食品同名别名在服务层做冲突校验”（[`docs/db/schema.sql:229`](db/schema.sql)） | “别名不能随意覆盖其他食品的标准名称”（PRD 5.2）这一明文业务规则仅靠服务层自觉；一旦漏实现，搜索会把用户导向错误食品 | 服务层必须返回 `40901` 并补单元测试；长期可加触发器或应用启动期全量校验 | T-04 / R08 |
 | **G-12** | 内容表审计列无外键 | `food` / `nutrition_value` / `knowledge_doc` 的 `created_by`、`updated_by`、`reviewed_by` 均无外键 | 可能记入不存在的用户 id；审计追责链出现断点 | 补外键（可空外键不影响逻辑删除）；或明确接受并写进注释 | `[D7]` |
-| **G-13** | `knowledge_chunk` 无 `review_status` / `publish_status` / `deleted_at` | 分块只有内容与顺序字段（[`docs/db/schema.sql:378-393`](db/schema.sql)） | 分块级审核、分块级下架在结构上不可行；重新分块只能整体替换，历史版本不可追溯 | 明确“分块随文档级联”为设计选择并写进注释；若要分块级治理，需补状态列与相应接口 | T-01 / T-02 / T-03 / A-04 |
+| **G-13** | `knowledge_chunk` 无 `review_status` / `publish_status` / `deleted_at` | 分块只有内容与顺序字段（[`docs/db/schema.sql:412-427`](db/schema.sql)） | 分块级审核、分块级下架在结构上不可行；重新分块只能整体替换，历史版本不可追溯 | 明确“分块随文档级联”为设计选择并写进注释；若要分块级治理，需补状态列与相应接口 | T-01 / T-02 / T-03 / A-04 |
 | **G-14** | `[D8]` 逻辑删除覆盖不全 | 21 张表中 **10 张**有 `deleted_at`（`sys_user`、`food_category`、`food`、`food_alias`、`food_image`、`food_state_variant`、`nutrition_value`、`knowledge_doc`、`chat_session`、`user_favorite`），**11 张没有**：`sys_role`、`sys_user_role`、`sys_auth_token`、`user_profile`、`nutrient`、`data_source`、`knowledge_chunk`、`chat_message`、`image_recognition`、`admin_audit_log`、`operation_log` | “误删恢复 + 审计”的能力在不同表之间不一致；例如删除用户资料、撤销角色、清理消息都是**不可恢复的物理删除**；同时缺 `deleted_at` 的表也不在 `[D8]` 的唯一键方案里 | 逐表明确策略并写进注释：审计/日志/令牌类**有意**不可逻辑删除（`admin_audit_log`、`operation_log`、`sys_auth_token`、`chat_message`）；字典类（`nutrient`、`data_source`、`sys_role`）建议改为 `enabled` / `OFFLINE` 语义；用户行为与业务实体的从属表（`user_profile`、`knowledge_chunk`）明确“随父级联” | `[D8]` |
 | **G-15** | 审核字段缺少驱动接口 | `nutrition_value.review_status`/`reviewed_by`/`reviewed_at`、`food_image.review_status` 在 schema 中存在，但契约里只有 `PUT /admin/variants/{id}/nutrition`、图片上传/删除（[`docs/api-contract.md:451-457`](api-contract.md)）；`knowledge_doc.publish_status` 也无发布/下架接口 | `[D6]`“审核 ≠ 发布”在营养域与图片域**无法落地**：审核字段永远写不进去，图片会永久停在 `PENDING`，`knowledge_doc.publish_status` 无法被驱动 | 明确“级联审核”：审核食品时把其 `PENDING` 的图片与营养数据一并审核（`reviewed_by`/`reviewed_at` 同步写入）；知识文档补 `review` / `publish` / `DELETE` 接口 | T-01 / T-02 / T-03 / A-03 / A-04 |
-| **G-16** | `food_category.parent_id` 无环检测、无删除策略 | 自引用外键，无 `ON DELETE`（[`docs/db/schema.sql:152`](db/schema.sql)） | 可构造 `A → B → A` 的环，分类树遍历可能死循环；删除父分类会被 RESTRICT 阻止（需先处理子分类，行为正确但需在服务层给出明确错误） | 服务层在设置父分类时做祖先链校验；必要时用 `CHECK (parent_id <> id)` 先挡住自环 | — |
-| **G-17** | `chat_session` 可同时为“无用户、无游客标识” | `user_id` 与 `guest_key` 都可空，无 CHECK 要求至少一个非空（[`docs/db/schema.sql:402-403`](db/schema.sql)） | 会产生无法归属、无法限流统计的孤儿会话 | 补 `CHECK (user_id IS NOT NULL OR guest_key IS NOT NULL)`，或在服务层强制 | R12 / T-05 |
+| **G-16** | `food_category.parent_id` 无环检测、无删除策略 | 自引用外键，无 `ON DELETE`（[`docs/db/schema.sql:176`](db/schema.sql)） | 可构造 `A → B → A` 的环，分类树遍历可能死循环；删除父分类会被 RESTRICT 阻止（需先处理子分类，行为正确但需在服务层给出明确错误） | 服务层在设置父分类时做祖先链校验；必要时用 `CHECK (parent_id <> id)` 先挡住自环 | — |
+| **G-17** | `chat_session` 可同时为“无用户、无游客标识” | `user_id` 与 `guest_key` 都可空，无 CHECK 要求至少一个非空（[`docs/db/schema.sql:403-404`](db/schema.sql)） | 会产生无法归属、无法限流统计的孤儿会话 | 补 `CHECK (user_id IS NOT NULL OR guest_key IS NOT NULL)`，或在服务层强制 | R12 / T-05 |
 
 ### 8.2 文档与流程层缺口
 
