@@ -20,8 +20,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import EmptyState from '../../components/EmptyState.vue'
 import SkeletonBlock from '../../components/SkeletonBlock.vue'
 import NoticeBanner from '../../components/NoticeBanner.vue'
-import { getAdminFoods, getVariantNutrition, updateVariantNutrition } from '../../api/admin'
-import { getFoodDetail } from '../../api/foods'
+import { getAdminFood, getAdminFoods, getVariantNutrition, updateVariantNutrition } from '../../api/admin'
 import { useToastStore } from '../../stores/toast'
 import { MISSING_TEXT, textOrPlaceholder } from '../../utils/format'
 
@@ -41,6 +40,8 @@ const loadingVariants = ref(false)
 const loadingNutrition = ref(false)
 const saving = ref(false)
 const loadFailed = ref(false)
+/** 形态加载失败（多见于草稿食品在公开接口上被 40401 挡掉）：与「该食品没有形态」是不同的两件事 */
+const variantLoadFailed = ref(false)
 
 const selectedFoodId = ref('')
 const selectedVariantId = ref('')
@@ -86,11 +87,15 @@ async function loadVariants() {
   variants.value = []
   selectedVariantId.value = ''
   rows.value = []
+  variantLoadFailed.value = false
   if (!selectedFoodId.value) return
 
   loadingVariants.value = true
-  const { data } = await getFoodDetail(selectedFoodId.value, { silent: true })
+  // 必须走后台接口：草稿食品在公开的 GET /foods/{id} 上会被 40401 挡掉，
+  // 而这里要维护的恰恰包括还没发布、没有形态的食品。
+  const { data, error } = await getAdminFood(selectedFoodId.value, { silent: true })
   loadingVariants.value = false
+  variantLoadFailed.value = Boolean(error)
 
   const list = data && Array.isArray(data.variants) ? data.variants : []
   variants.value = list
@@ -219,6 +224,13 @@ onMounted(loadFoods)
     />
 
     <NoticeBanner
+      v-if="variantLoadFailed"
+      variant="warning"
+      title="无法读取该食品的形态"
+      message="可能是后端接口不可用，或当前账号没有管理权限。形态列表读不到时，下方不会显示任何形态选项。"
+    />
+
+    <NoticeBanner
       v-if="missingSourceIndexes.length > 0"
       variant="warning"
       title="有项目缺少来源"
@@ -300,7 +312,12 @@ onMounted(loadFoods)
                   :placeholder="row.valueStatus === 'MISSING' ? '不参与计算' : ''"
                 />
               </td>
-              <td><input v-model="row.displayText" class="na-input" type="text" placeholder="例如 15 kcal" /></td>
+              <td>
+                <!-- 只填数值，**不带单位**：`displayText` 与 `unit` 是两个字段（契约 3.3），
+                     单位一律取自上一列 `unit`。写「15 kcal」会让同一个数值出现两种口径，
+                     且展示时又会被格式化补一次单位，变成「15 kcal kcal」。 -->
+                <input v-model="row.displayText" class="na-input" type="text" placeholder="例如 15" />
+              </td>
               <td>
                 <input v-model="row.sourceId" class="na-input na-admin-nutrition__narrow" type="number" placeholder="必填" />
               </td>

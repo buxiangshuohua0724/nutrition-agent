@@ -43,7 +43,17 @@ export function chat(payload, options = {}) {
     weight: weight === null || weight === undefined ? null : Number(weight),
   }
   return withDemo(
-    () => post('/agent/chat', body, options),
+    async () => {
+      const data = await post('/agent/chat', body, options)
+      // 后端返回的是 `ChatResponse`：`{ sessionId, sessionTitle, answer: AgentAnswer }`。
+      // 这里把 `sessionId` 摊平进回答对象，视图层拿到的仍是契约 3.5 的 `AgentAnswer`
+      // （`answer/sources/uncertainty/…` 都在同一层），同时 `sessionId` 能被读到用于多轮会话。
+      // 不在视图层做这层拆包，是为了让「响应结构变了」只影响这一个文件。
+      if (data && data.answer && typeof data.answer === 'object') {
+        return { ...data.answer, sessionId: data.sessionId, sessionTitle: data.sessionTitle }
+      }
+      return data
+    },
     () => DEMO_AGENT_ANSWER,
   )
 }

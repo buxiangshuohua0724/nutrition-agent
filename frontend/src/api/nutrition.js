@@ -125,17 +125,29 @@ export function calculateNutrition(payload, options = {}) {
       const requestedFood = Number(foodId)
       const requestedVariant =
         variantId === null || variantId === undefined || variantId === '' ? null : Number(variantId)
-      const hasVariant = requestedVariant !== null && DEMO_NUTRITION_TABLES_BY_VARIANT[requestedVariant]
-      const table = hasVariant
-        ? DEMO_NUTRITION_TABLES_BY_VARIANT[requestedVariant]
-        : DEMO_NUTRITION_TABLES_BY_VARIANT[DEMO_DEFAULT_VARIANT[requestedFood]] || null
+      const requestedTable =
+        requestedVariant === null ? null : DEMO_NUTRITION_TABLES_BY_VARIANT[requestedVariant] || null
+      // 形态必须属于被查询的食品：`variantId=19` 是**苹果**的形态，拿它配 `foodId=1`
+      // 会拼出一份"西红柿的 id 加苹果的数值"的假营养表（与 foods.js 的 getFoodNutrition 同一口径）。
+      // 这种请求不是"没找到"，而是自相矛盾，按不存在处理，调用方渲染「暂无数据」。
+      if (requestedTable && Number(requestedTable.foodId) !== requestedFood) {
+        return null
+      }
+      const table =
+        requestedTable || DEMO_NUTRITION_TABLES_BY_VARIANT[DEMO_DEFAULT_VARIANT[requestedFood]] || null
+      if (!table) {
+        // 没有对应形态的数据是**真实状态**，不拿别的食品的数据顶上
+        return null
+      }
       // 重量必须原样参与折算（此前演示分支忽略入参、公式恒为 150 g，是错的）
       const factor = UNIT_TO_GRAM[String(weightUnit)] || 1
       const weightInGram = Number(weight) * factor
       const calculation = buildDemoCalculation(table, weightInGram, weightUnit)
       if (!calculation) return null
-      // 只覆盖纯标识字段，数值一律来自上面按公式的确定性折算
-      return demoClone(calculation, { foodId: requestedFood || calculation.foodId })
+      // 只覆盖纯标识字段，数值一律来自上面按公式的确定性折算。
+      // 这里用 `table.foodId` 而不是 `requestedFood || table.foodId`：后者在 id 非法（NaN）
+      // 时会悄悄把食品换成另一只，与"数据属于哪个食品"这一前提直接冲突。
+      return demoClone(calculation, { foodId: table.foodId })
     },
   )
 }

@@ -46,9 +46,17 @@ export function isZeroCell(cell) {
  * 渲染营养单元格文本。
  *
  * 严格按契约三态处理：
- *   - `PRESENT` → 值 + 单位（直接使用后端 `displayText`）
- *   - `ZERO`    → `0` + 单位（直接使用后端 `displayText`，形如 "0 g"）
+ *   - `PRESENT` → `displayText` + 单位（如 `"15"` + `" kcal"`）
+ *   - `ZERO`    → `"0"` + 单位（**已知为零必须显示出来**，不等于「暂无数据」）
  *   - `MISSING` → 「暂无数据」
+ *
+ * **`displayText` 里只有数值，没有单位。** 后端的 `NutritionMath.displayText()`
+ * 只负责把一个数去掉无意义的尾随零（`15.0` → `"15"`、`0` → `"0"`），单位在 `unit`
+ * 字段里，由这里拼接。之所以不在后端拼成 `"15 kcal"`：那样前端一旦要换单位、
+ * 做同比或对齐小数位，就只能去解析字符串。
+ *
+ * 这个拼接不是可选的：漏掉单位，界面上就会出现一个孤零零的 `"30"`，
+ * 用户无从判断是 30 千卡还是 30 克——而营养表恰恰是靠数字加单位才有意义的。
  *
  * @param {{valueStatus?: string, displayText?: string, unit?: string}|null|undefined} cell
  * @returns {string} 可直接渲染的文本
@@ -58,21 +66,40 @@ export function formatNutrition(cell) {
   // 先判缺失：MISSING 无论 displayText 为何都显示「暂无数据」
   if (cell.valueStatus === VALUE_STATUS.MISSING) return MISSING_TEXT
   if (typeof cell.displayText === 'string' && cell.displayText.trim() !== '') {
-    return cell.displayText
+    return withUnit(cell.displayText, cell.unit)
   }
   // 契约的 NutritionCalculation.items[] 使用 computedAmount 表达折算后的数值，
   // 此时按「数值 + 单位」渲染；数值本身仍来自后端，不做任何推断。
   if (cell.valueStatus === VALUE_STATUS.PRESENT && typeof cell.computedAmount === 'number' && Number.isFinite(cell.computedAmount)) {
-    return cell.unit ? `${cell.computedAmount} ${cell.unit}` : String(cell.computedAmount)
+    return withUnit(String(cell.computedAmount), cell.unit)
   }
   if (cell.valueStatus === VALUE_STATUS.ZERO) {
-    return cell.unit ? `0 ${cell.unit}` : '0'
+    return withUnit('0', cell.unit)
   }
   if (cell.valueStatus === VALUE_STATUS.PRESENT) {
     // 契约要求 PRESENT 必须带 displayText 或 computedAmount；都没有时不猜数值
     return MISSING_TEXT
   }
   return MISSING_TEXT
+}
+
+/**
+ * 把数值文本与单位拼起来。
+ *
+ * 幂等：调用方若已经带上了单位（例如演示数据集里历史生成的 `"15 kcal"`），
+ * 不再重复拼接——否则会显示成 `"15 kcal kcal"`。判据是「文本末尾已经是这个单位」，
+ * 而不是「文本里有空格」。
+ *
+ * @param {string} text  数值文本（可能已含单位）
+ * @param {string} [unit] 单位，可能缺失
+ * @returns {string}
+ */
+function withUnit(text, unit) {
+  const value = String(text).trim()
+  const suffix = typeof unit === 'string' ? unit.trim() : ''
+  if (suffix === '') return value
+  if (value === suffix || value.endsWith(` ${suffix}`)) return value
+  return `${value} ${suffix}`
 }
 
 /**

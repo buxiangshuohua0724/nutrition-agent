@@ -186,12 +186,15 @@ export function getFoodDetail(id, options = {}) {
   return withDemo(
     () => get(`/foods/${encodeURIComponent(id)}`, undefined, options),
     () => {
-      // 演示数据集与种子库一一对应，能按 id 精确命中；命中不了就退到默认演示对象，
-      // 但**只覆盖标识字段**，绝不改动任何营养数值。
+      // 演示数据集与种子库一一对应，能按 id 精确命中。
+      // **命中不了就返回 null**：后端对不存在的食品返回 40401，
+      // 演示态必须表达同一种事实，而不是"拿别的食品（曾经是 foodId=12 苹果）顶上、
+      // 再把 id 覆盖成请求值"——那会凭空造出一个库里并不存在的食品，
+      // 叠加识别候选的错误引用后，/food/41 会正儿八经地显示苹果的营养数据。
+      // 返回 null 后由调用方按「食品不存在 / 暂无数据」渲染。
       const requested = Number(id)
       const matched = DEMO_FOOD_DETAILS_BY_ID[requested]
-      if (matched) return demoClone(matched)
-      return demoClone(DEMO_FOOD_DETAILS_BY_ID[12], { id: requested || 12 })
+      return matched ? demoClone(matched) : null
     },
   )
 }
@@ -217,17 +220,24 @@ export function getFoodNutrition(id, params = {}, options = {}) {
       const foodId = Number(id)
       const requested = variantId === null || variantId === undefined || variantId === '' ? null : Number(variantId)
       // 演示数据集覆盖种子库全部 37 个形态，能按 variantId 精确命中。
-      const table =
-        (requested !== null ? DEMO_NUTRITION_TABLES_BY_VARIANT[requested] : null) ||
-        DEMO_NUTRITION_TABLES_BY_VARIANT[DEMO_DEFAULT_VARIANT[foodId]] ||
-        null
+      const requestedTable = requested === null ? null : DEMO_NUTRITION_TABLES_BY_VARIANT[requested] || null
+      // 形态必须属于被查询的食品：`variantId=19` 是**苹果**的形态，拿它配 `foodId=1`
+      // 会拼出一份"西红柿的 id 加苹果的数值"的假营养表，页面会一本正经地显示错数据。
+      // 这种请求不是"没找到"，而是自相矛盾，按不存在处理（调用方会渲染「暂无数据」）。
+      if (requestedTable && Number(requestedTable.foodId) !== foodId) {
+        return null
+      }
+      const table = requestedTable || DEMO_NUTRITION_TABLES_BY_VARIANT[DEMO_DEFAULT_VARIANT[foodId]] || null
       if (!table) {
         // 没有对应形态的数据是**真实状态**（而不是"拿别的食品的数据顶上"）。
         // 返回 null，让调用方按 NUTRITION_NOT_FOUND 的分支渲染「暂无数据」。
         return null
       }
-      // 只覆盖纯标识字段，营养数值一律来自演示数据集
-      return demoClone(table, { foodId: foodId || table.foodId })
+      // 只覆盖纯标识字段，营养数值一律来自演示数据集。
+      // 这里用 `table.foodId`（= foodId）而不是 `foodId || table.foodId`：
+      // 后者在 id 非法（NaN）时会悄悄把食品换成苹果，与"数据属于哪个食品"这一
+      // 前提直接冲突——宁可不返回数据，也不返回另一只食品的营养表。
+      return demoClone(table, { foodId: table.foodId })
     },
   )
 }

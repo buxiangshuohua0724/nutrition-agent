@@ -35,6 +35,23 @@ export async function getAdminFoods(params = {}, options = {}) {
 }
 
 /**
+ * 后台食品详情（含草稿与未发布的形态）。
+ *
+ * 接口：`GET /admin/foods/{id}`（管理角色）
+ * 响应：`FoodDetail`
+ *
+ * 与公开的 `GET /foods/{id}` 的区别只有一个：公开接口对未发布的食品一律 40401，
+ * 后台必须能打开草稿，否则「新建 → 编辑 → 提交审核」这条链路走不通。
+ *
+ * @param {number|string} id 食品 id
+ * @param {object} [options] 请求选项
+ * @returns {Promise<object|null>}
+ */
+export function getAdminFood(id, options = {}) {
+  return get(`/admin/foods/${encodeURIComponent(id)}`, undefined, options)
+}
+
+/**
  * 新增食品。
  *
  * 接口：`POST /admin/foods`（管理角色）

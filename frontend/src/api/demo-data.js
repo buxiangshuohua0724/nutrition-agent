@@ -13,6 +13,12 @@
  */
 
 import { withDemoFallback, withEmptyPageFallback } from '../utils/dev'
+import { formatNutrition } from '../utils/format'
+
+// 供校验脚本（frontend/scripts/verify-answer.mjs）复用同一个渲染口径：
+// 它要断言「回答正文里的数值与营养表一致」，如果自己另写一份拼接规则，
+// 两份规则迟早会分叉，脚本就会开始对着错的东西点头。
+export { formatNutrition }
 import {
   DEMO_CATEGORY_LIST,
   DEMO_DEFAULT_VARIANT,
@@ -119,7 +125,10 @@ export function buildDemoAnswer(foodId) {
   const macroIds = [1, 2, 3, 4, 5] // 热量 / 蛋白质 / 脂肪 / 碳水化合物 / 膳食纤维
   const macroText = rows
     .filter((row) => macroIds.includes(row.nutrientId) && row.valueStatus !== 'MISSING')
-    .map((row) => `${row.nutrientName} ${row.displayText}`)
+    // 走 formatNutrition 而不是直接拼 displayText：displayText 只有数值，
+    // 单位在 unit 字段里。不拼单位，回答正文就会写成「热量 15、蛋白质 0.9」这种
+    // 少了单位的句子，而同一页面的营养表里是有单位的，两处对不上。
+    .map((row) => `${row.nutrientName} ${formatNutrition(row)}`)
     .join('、')
   const missingNames = rows
     .filter((row) => row.valueStatus === 'MISSING')
@@ -151,10 +160,13 @@ export function buildDemoAnswer(foodId) {
   return {
     answer: sections.join('\n\n'),
     intent: 'NUTRITION_VALUE',
+    // 会话 id 由后端在首次提问时创建并回传（`ChatResponse.sessionId`），
+    // 演示数据也要带上它，否则演示态下多轮问答每轮都会当成新会话。
+    sessionId: 900001,
     foodReferences: [
       {
         foodId,
-        name: food.name,
+        foodName: food.name,
         variantId: table.variantId,
         variantLabel: table.variantLabel,
         coverImageUrl: null,
@@ -167,9 +179,12 @@ export function buildDemoAnswer(foodId) {
       .map((row) => ({
         foodName: food.name,
         variantLabel: table.variantLabel,
+        nutrientCode: row.nutrientCode,
         nutrientName: row.nutrientName,
         amount: row.amount,
         unit: row.unit,
+        valueStatus: row.valueStatus,
+        displayText: row.displayText,
         referenceNote: table.referenceNote,
         sourceName: '演示数据集',
       })),
@@ -183,9 +198,16 @@ export function buildDemoAnswer(foodId) {
         // 引用必须指向种子库里真实存在的知识分块（doc=5《营养数据常见问题：
         // 缺失值、零值与参考重量》，chunk_index=1「零值与缺失值的区别」）。
         // 此前这里写的是并不存在的 KDOC_0007，属于「展示了不存在的引用」，已修正。
+        //
+        // 注意 refId 里的 chunk 号是 knowledge_chunk.id（**全局主键**），不是文档内的
+        // chunk_index。这一条 doc_id=5 / chunk_index=1 的分块全局 id 是 14
+        // （backend/src/main/resources/db/h2/data.sql:718），所以是 #chunk14。
+        // 写成 #chunk1 会解析回 doc_id=1 的分块——引用指向了另一篇文档，
+        // 而且这种错误在界面上看起来完全正常（标题是我们自己写的），只有对着
+        // 种子数据核对才会发现，因此必须由注释和 check 脚本双重守住。
         type: 'KNOWLEDGE',
         title: '营养数据常见问题：缺失值、零值与参考重量',
-        refId: 'KDOC_0005#chunk1',
+        refId: 'KDOC_0005#chunk14',
         url: null,
       },
     ],
@@ -225,15 +247,49 @@ export const DEMO_MESSAGES = [
   },
 ]
 
-/** 识别结果（ImageRecognitionResult 结构，候选不含任何营养数值） */
+/**
+ * 按 `code` 在**生成的事实数据集**里定位一个食品，取它真实的 `id` 与 `name`。
+ *
+ * 为什么必须这样写：演示识别候选曾经是手写的 `{foodId: 12, foodName: '西红柿'}`，
+ * 而种子库里 12 其实是苹果 —— 于是识别页显示「西红柿」，点进 `/food/12` 却是苹果；
+ * 第三个候选更写了数据集里根本不存在的 `foodId: 41`，确认时必然失败。
+ * 手写 id↔名称的组合没有任一门禁能拦住，所以这里改为**只按 code 查表**。
+ *
+ * 同步关系：候选里的 `foodId` / `foodName` 必须与后端种子数据
+ * `backend/src/main/resources/db/h2/data.sql` 一致（本文件的事实层就是由该 SQL 生成的）。
+ * 之所以把这条约束写在代码里：id 与名称错位**不会报错、不会白屏**，
+ * 页面照常显示一个"看起来能用"的识别结果，只是确认后看到的是另一种食品的营养——
+ * 这类错误比直接抛异常难发现得多，所以对应关系必须显式记下来、由 code 反查保证。
+ *
+ * `code` 不存在时直接抛错：宁可让校验脚本与构建当场失败，
+ * 也不要静默退化成 `foodId: undefined` 的候选（那又会伪造一个不存在的食品）。
+ *
+ * @param {string} code 种子库里的 `food.code`（如 `veg-tomato`）
+ * @returns {{foodId: number, foodName: string}} 真实 id 与名称
+ * @throws {Error} 数据集里没有该 code 时
+ */
+function demoFoodRef(code) {
+  const food = DEMO_FOOD_LIST.find((item) => item.code === code)
+  if (!food) {
+    throw new Error(`演示数据集里不存在 food.code = ${code}，无法生成演示识别候选`)
+  }
+  return { foodId: food.id, foodName: food.name }
+}
+
+/** 三个演示识别候选：真实 id / 名称一律由 code 解析，人工只提供置信度与理由文案。 */
 export const DEMO_RECOGNITION = {
   recognitionId: 501,
   status: 'SUCCESS',
   imageUrl: null,
   candidates: [
-    { foodId: 12, foodName: '西红柿', confidence: 0.92, reason: '形态与颜色匹配', coverImageUrl: null },
-    { foodId: 13, foodName: '黄瓜', confidence: 0.61, reason: '同为常见红色/绿色茄果类蔬菜', coverImageUrl: null },
-    { foodId: 41, foodName: '苹果', confidence: 0.12, reason: '圆形轮廓相似度较低', coverImageUrl: null },
+    { ...demoFoodRef('veg-tomato'), confidence: 0.92, reason: '形态与颜色匹配', coverImageUrl: null },
+    {
+      ...demoFoodRef('veg-cucumber'),
+      confidence: 0.61,
+      reason: '同为常见红色/绿色茄果类蔬菜',
+      coverImageUrl: null,
+    },
+    { ...demoFoodRef('fruit-apple'), confidence: 0.12, reason: '圆形轮廓相似度较低', coverImageUrl: null },
   ],
   confirmedFoodId: null,
   notice: '识别结果仅为候选，请您确认后再查看营养数据。混合菜品的食材、重量及烹饪用油无法仅凭图片确定。',

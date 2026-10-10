@@ -41,7 +41,13 @@ const {
   DEMO_NUTRITION_TABLES_BY_VARIANT,
   DEMO_NUTRIENT_BY_ID,
   buildDemoAnswer,
+  formatNutrition,
 } = mod
+
+if (typeof formatNutrition !== 'function') {
+  console.error('[verify-answer] demo-data.js 没有转出 formatNutrition，无法按渲染口径比对数值，请检查该文件')
+  process.exit(1)
+}
 
 if (typeof buildDemoAnswer !== 'function') {
   console.error('[verify-answer] demo-data.js 没有导出 buildDemoAnswer，校验脚本已失效，请检查该文件')
@@ -74,11 +80,14 @@ for (const food of DEMO_FOODS) {
     if (row.valueStatus === 'ZERO') zeroNames.push(name)
     if (row.valueStatus === 'MISSING') missingNames.push(name)
     // 1. 正文提到该项就必须用表里的数值
+    //    比对的是**渲染文本**（数值 + 单位），因为回答正文由同一个 formatNutrition 生成。
+    //    只比 amount 是不够的：那样脚本会放过「正文写着 15 而界面显示 15 kcal」这类单位丢失，
+    //    而单位丢失恰恰是用户唯一无法从数字本身察觉的错误。
     if (row.valueStatus !== 'MISSING' && answer.includes(`${name} `)) {
-      if (!answer.includes(`${name} ${row.amount} `)) {
+      if (!answer.includes(`${name} ${formatNutrition(row)}`)) {
         const line = answer.split('\n').find((item) => item.includes(`${name} `)) || ''
         problems.push(
-          `foodId=${food.id} ${food.name}：「${name}」在正文里的数值与营养表不一致（表=${row.amount}）｜${line}`,
+          `foodId=${food.id} ${food.name}：「${name}」在正文里的数值与营养表不一致（表=${formatNutrition(row)}）｜${line}`,
         )
       }
     }
