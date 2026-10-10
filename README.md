@@ -162,14 +162,23 @@ git diff v0.2.0..v0.3.0                # 对比两个里程碑
 **所有已发布营养数据的来源可追溯率必须为 100%**（PRD 2.2）。
 
 每条营养数据强制携带：
-- `unit`：计量单位（如 `g`、`mg`、`kcal`）
-- `reference_weight`：参考重量与基准（如 `100g 可食部`）
-- `food_state`：食品状态（`RAW` 生 / `COOKED` 熟 / `PEELED` 去皮 / `PROCESSED` 加工）
+- `unit`：计量单位（如 `g`、`mg`、`kcal`）—— 落在 `nutrient.unit`（指标字典），**不在** `nutrition_value` 上
+- `reference_weight`：参考重量与基准（如 `100g 可食部`）→ `nutrition_value.reference_amount` / `reference_unit` / `reference_note`
+- `food_state`：食品状态（`RAW` 生 / `COOKED` 熟 / `PEELED` 去皮 / `PROCESSED` 加工）→ `food_state_variant.state`
 - `source_id`：数据来源标识 → `data_source` 表
 
 > ⚠️ **种子数据声明**：仓库内 `dev`/`demo` 种子数据仅用于打通流程与自动化测试，
-> 数值标注为 `(演示数据)`，**不得**直接作为对外发布的权威营养数据。
+> 数值标注为 `(演示数据)`（`data_source.code = 'DEMO-SEED'`、`source_type = 'DEMO'`），
+> **不得**直接作为对外发布的权威营养数据。
 > 正式数据必须由内容管理员依据权威来源（如《中国食物成分表》）录入并审核发布。
+>
+> ⚠️ **种子数据为什么是"已发布"**：`h2/data.sql` 里 23 个食品全部
+> `publish_status='PUBLISHED'`，是为了让后端公开接口在开发期有可见数据
+> （`PUBLISHED + APPROVED + deleted_at IS NULL` 是公开查询的第一道过滤，
+> 全部下架会让接口无对象可返）。这**不构成产品级发布承诺**，
+> 也不意味着它们可以对外发布；该豁免的范围与边界见
+> [`docs/data-source-policy.md`](docs/data-source-policy.md) 7.1 的 D9/D10。
+> 因此**开发期查询 C-01 必然非 0 行**，属预期状态；上线前必须归零（D8）。
 
 ---
 

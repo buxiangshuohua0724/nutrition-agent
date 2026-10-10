@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
@@ -14,7 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -208,6 +211,52 @@ class SeedContractTest {
             throw new UncheckedIOException(
                     "读不到素材目录 " + dir + "（测试假设工作目录是 backend/，且前端素材已生成）", e);
         }
+    }
+
+    /**
+     * 形态营养行「三态」的完整覆盖契约。
+     *
+     * <p>种子里有 4 个形态（葡萄/橙子/牛肉等）在 `nutrition_value` 里<b>整行缺失</b>，
+     * 而不是写成 `MISSING`。生成器只序列化已存在的行，因此前端营养表里那一项会
+     * 直接消失——用户既看不到数值，也看不到「暂无数据」，等于把「库里没有」
+     * 静默吞掉，违反 PRD 4.4「未知 ≠ 零，且必须显式呈现」。
+     *
+     * <p>本测试把这个缺口显性化：<b>每个形态都应该有 14 行营养素记录</b>
+     * （14 = `nutrient` 字典表的行数）。一旦有人补全种子，或生成器改成补齐缺行，
+     * 断言会从「已知缺口」翻转为「必须为 0」——那时请把断言改成 `isZero()`。
+     */
+    @Test
+    @DisplayName("[D2] 形态的营养行数应当覆盖全部营养素；现存缺口必须被显式记录，不能悄悄扩大")
+    void everyVariantShouldCoverAllNutrients() {
+        int nutrientCount = jdbc.queryForObject("SELECT COUNT(*) FROM nutrient", Integer.class);
+        assertThat(nutrientCount).as("营养素字典应当是 14 项").isEqualTo(14);
+
+        Map<Integer, String> variants = new TreeMap<>();
+        Map<Integer, Integer> rowCounts = new TreeMap<>();
+
+        jdbc.query("SELECT fsv.id, f.name FROM food_state_variant fsv "
+                        + "JOIN food f ON f.id = fsv.food_id ORDER BY fsv.id",
+                (RowCallbackHandler) rs -> variants.put(rs.getInt(1), rs.getString(2)));
+        jdbc.query("SELECT variant_id, COUNT(*) FROM nutrition_value "
+                        + "WHERE deleted_at IS NULL GROUP BY variant_id",
+                (RowCallbackHandler) rs -> rowCounts.put(rs.getInt(1), rs.getInt(2)));
+
+        List<String> shortVariants = variants.keySet()
+                .stream()
+                .filter(id -> rowCounts.getOrDefault(id, 0) != nutrientCount)
+                .map(id -> "variantId=" + id + " (" + variants.get(id) + ") rows="
+                        + rowCounts.getOrDefault(id, 0))
+                .toList();
+
+        assertThat(shortVariants)
+                .as("营养行数不等于营养素总数的形态，每一条都是「界面会静默少一项」的隐患。"
+                        + "已知种子库缺 4 个形态的行（葡萄/橙子/牛肉的 VITAMIN_A 等）；"
+                        + "这个清单一旦变长，说明缺口在扩散")
+                .containsExactly(
+                        "variantId=34 (葡萄) rows=13",
+                        "variantId=35 (橙子) rows=12",
+                        "variantId=36 (牛肉) rows=13",
+                        "variantId=37 (牛肉) rows=11");
     }
 
     /*

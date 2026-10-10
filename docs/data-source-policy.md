@@ -539,14 +539,16 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 
 | # | 要求 | 说明 |
 | --- | --- | --- |
-| D1 | 演示数据的 `data_source.code` 统一使用 **`DEMO_DATASET`** | 与 `README.md` 声明一致 |
-| D2 | 演示数据来源的 `name` 必须含**醒目标识**（如"演示数据集（不可用于对外发布）"） | 让人在后台一眼看出 |
-| D3 | 演示数据的 `source_type = 'DEMO'` | 可被 C-01 自动识别 |
+| D1 | 演示数据的 `data_source.code` 统一使用 **`DEMO_DATASET`** | 与 `README.md` 声明一致。**当前种子库未达标**：实际 code 是 `DEMO-SEED`（T-29 已把它登记为稳定引用键）。改名会打断已生效的稳定引用，故本项按"**目标形态**"保留、不追溯既存数据 |
+| D2 | 演示数据来源的 `name` 必须含**醒目标识** | 让人在后台一眼看出。当前种子库满足：`AI 食品营养师演示数据集（非真实来源）` |
+| D3 | 演示数据的 `source_type = 'DEMO'` | 可被 C-01 自动识别。当前种子库满足（`data_source.id=1`） |
 | D4 | 演示数据的 `applicable_scope` 必须写明"仅用于开发与自动化测试" | 防止被当作适用人群依据 |
-| D5 | 演示食品的 `code` 建议带前缀（如 `DEMO_`） | 便于批量清理与识别 |
-| D6 | 演示数据**不得**进入 `knowledge_doc`（知识库） | 知识库内容会被 AI 引用，风险更高 |
-| D7 | 演示数据**不得**进入任何标注为"正式"的发布流程 | C-01 已将此变成硬校验 |
-| D8 | 上线前必须执行一次 C-01，确认 0 行 | 阶段六验收的必过项 |
+| D5 | 演示食品的 `code` 建议带前缀（如 `DEMO_`） | 便于批量清理与识别。**当前种子库未采用**（food code 用 `veg-`/`fruit-`/`aquatic-` 等分类前缀），属建议项而非要求，暂不迁移 |
+| D6 | 演示数据**不得**进入 `knowledge_doc`（知识库） | 知识库内容会被 AI 引用，风险更高。**当前种子库存在一处自相矛盾**：6 篇知识文档的 `source_id` 全部指向 `data_source.id=1`（`DEMO-SEED`），见 3.4 |
+| D7 | 演示数据**不得**进入任何标注为"正式"的发布流程 | C-01 已将此变成硬校验。**当前种子库不满足**（见 7.2 与 D9） |
+| D8 | 上线前必须执行一次 C-01，确认 0 行 | 阶段六验收的必过项。**注意：在开发期本项必然不通过**，这是 7.2 的过渡期状态，不是缺陷 |
+| D9 | **开发期种子数据的整体豁免（2026-10 决策）** | 种子库的 23 个食品**全部**为演示数据（营养行 100% 引用 `DEMO-SEED`），且全部 `publish_status='PUBLISHED'`。这是**有意为之**：后端接口需要"已发布且数据完整"的对象才能联通与演示（`publish_status` 过滤是公开接口的第一道门，若全部下架则后端无任何可见数据）。因此**开发期整体豁免 D7**，种子数据状态不改。豁免的**边界**：①只适用于 `h2/data.sql` 这份开发/测试种子；②上线前 D8 仍然必须过（做法是逐条把演示行**替换**为 A 级来源数据，而非新增并存，见 7.2 表）；③任何**新增**的演示数据仍受 D7 约束 |
+| D10 | 种子数据的"已发布"不等于"可对外发布" | 见 `README.md` 第六节「种子数据声明」：种子数值**不得**直接作为对外发布的权威营养数据。`publish_status='PUBLISHED'` 在开发期只承担"让后端有可见数据"的作用，**不构成产品级发布承诺** |
 
 ### 7.2 隔离机制的现实限制（必须知晓）
 
@@ -565,7 +567,11 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | 上线前 | C-01 必须 0 行：所有对外可见食品的营养数据 100% 来自 A 级来源 |
 | 上线后 | 新增演示数据一律**不得**挂在 `PUBLISHED` 食品上 |
 
-> 这项颗粒度限制已记入 `⚠️ 待确认` T-24。**在它被解决前，禁止把演示数据挂在已发布食品上。**
+> 这项颗粒度限制已记入 `⚠️ 待确认` T-24（该条已按本节 D9 决策关闭，见下）。
+>
+> ⚠️ **2026-10 决策：开发期整批豁免。** 原文写的是「**在它被解决前，禁止把演示数据挂在已发布食品上**」（`~~删除线~~` 标注为已被 D9 取代）。该禁令在**当前种子库上是必然违反的**——23 个食品全部 `PUBLISHED`、其营养行 100% 来自 `DEMO-SEED`。经确认为**有意选择**并记入 D9：种子数据的状态不改，改为由本文档显式声明豁免范围与边界。**"C-01 非 0 行"在开发期是预期状态，不是待修缺陷**；上线前（D8）仍必须归零，做法见下表的「数据建设期」行——**替换**而非并存。
+>
+> **为什么选择豁免而不是整批下架**：把 23 个食品改为未发布虽然能让 C-01 立即归零，但会让后端公开接口在开发期没有任何可见数据（`publish_status='PUBLISHED' + review_status='APPROVED' + deleted_at IS NULL` 是公开查询的第一道过滤），后续接口联通与端到端演示都会失去真实对象。而"换一个非 DEMO 的权威来源标签"等于**伪造来源**，被 PRD 2.2 与本文档全文禁止。因此唯一既真实又能推进开发的做法是：保留数据形态，把豁免写成文档的一部分。
 
 ### 7.3 后台的区分展示
 
@@ -662,7 +668,7 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | 编号 | 问题 | 位置 | 影响 | 建议 |
 | --- | --- | --- | --- | --- |
 | **T-23** | **`food` 表缺少逐字段的来源落点。** 食品的 `intro` / `common_usage` / `origin` / `storage_method` / `suitable_for` / `cautions`（PRD 5.8）在 schema 中只有 `created_by` / `updated_by` 作为溯源手段，**没有 `source_id`**。而 `nutrition_value`、`food_image`、`knowledge_doc` **都有** `source_id`。 | `docs/db/schema.sql` 的 `food` 表定义 | PRD 12.1「来源可追溯率 100%」在食品文案类字段上**无法自动校验**。`suitable_for` 与 `cautions` 是风险最高的字段（最易写成医学建议），却恰恰没有结构化来源 | 建议为 `food` 增加 `source_id`（或对 `suitable_for` / `cautions` 单独增加来源字段）；在补字段前，本文档要求这两个字段的内容若引用知识库，须在审计日志中记录引用的 `knowledge_doc.id` |
-| **T-24** | **来源分级的颗粒度与发布门禁冲突。** `nutrition_value` 有 `publish_status` 吗？没有——发布状态是**食品级**的（`food.publish_status`）。因此同一 `variant` 下若部分营养素来自 A 级、部分来自 `DEMO`，**无法只对用户隐藏后者**。 | `docs/db/schema.sql`（`nutrition_value` 与 `food` 的表级状态） | 过渡期存在"演示数值随已发布食品一起对外可见"的风险，直接违反 `README.md` 的演示数据禁令。C-01 只能**发现**，不能**阻止** | 过渡期硬性要求：禁止把演示数据挂在 `PUBLISHED` 食品上（本文档 7.2）；中长期建议为 `nutrition_value` 引入行级可见性（如 `is_publishable` 或在发布时物化快照） |
+| ~~**T-24**~~ | ~~**来源分级的颗粒度与发布门禁冲突。**~~ | ✅ **已关闭（2026-10 决策，落点 D9）** | 原影响：过渡期存在"演示数值随已发布食品一起对外可见"的风险，直接违反 `README.md` 的演示数据禁令。C-01 只能**发现**，不能**阻止** | **已在 7.1 新增 D9/D10 与 7.2 写明**：开发期种子数据（23 个食品全部 PUBLISHED、营养行 100% 来自 `DEMO-SEED`）**整批豁免** D7，状态不改；"C-01 非 0 行"在开发期是预期状态。豁免边界：只适用 `h2/data.sql` 这份开发种子、上线前 D8 仍须归零（**替换**而非并存）、新增演示数据仍受 D7 约束。技术层面的颗粒度限制**依然存在**（`nutrition_value` 没有行级发布状态），中长期建议不变：为行级可见性引入 `is_publishable` 或在发布时物化快照 |
 | **T-25** | **来源分级（A/B/C）不是 schema 中的列。** `data_source` 只有 `source_type`，没有 `source_tier`。 | `docs/db/schema.sql` 的 `data_source` 表 | 本文档第 1.3 节的分级是**对 `source_type` 的业务解释**，不是可直接查询的事实。LG-02（只能引用 A 级）无法用一条简单 SQL 表达，必须硬编码 `source_type` 白名单，未来扩展 `source_type` 时容易漏改 | 建议增加 `source_tier`（`A`/`B`/`C`）列，或把白名单集中到一个可配置常量类中并加单测。**本文档按"白名单硬编码 + C-01 校验"设计**，不改 schema |
 | **T-26** | **`chunkRef` 格式未作为正式约定写明。** 只在 `docs/api-contract.md` 的 `sources[].refId` 示例中出现过 `"KDOC_0007#chunk2"` 一个字符串。 | `docs/api-contract.md`（`sources` 字段示例） | 本文档 3.5 将其固化为 `KDOC_<docId 四位补零>#chunk<chunkIndex>`，作为"知识引用可定位"的校验依据。若非正式约定，S11 自检与 `docs/agent-design.md` FV-11 都会失效 | 在契约的 `sources` 或知识检索条款中显式写明 `refId` 构造规则（与 T-12 为同一问题的两面） |
 | ~~**T-27**~~ | ~~**`data_source.source_type` 的完整取值域未在契约中列出。**~~ | ✅ **已关闭（2026-10 修订）** | 原影响：若实际枚举少于本文档所列，1.3 的映射需收敛 | **已解决**：`source_type` 的取值域现已由 `ck_source_type` CHECK 在 **MySQL 与 H2 两份 schema 上同时强制**，取值为 `OFFICIAL`/`DATABASE`/`GUIDELINE`/`LITERATURE`/`STANDARD`/`COMMERCIAL`/`OTHER`/`DEMO`/`CUSTOM`，与本文档 1.3 分级表**逐字一致**；该不变量由 `SchemaParityTest.sourceTypeDomainMatchesPolicy` 卡住（任一处漂移即红）。**遗留**：把该枚举同步到 `docs/api-contract.md` 的后台数据源管理接口，仍未做 |
