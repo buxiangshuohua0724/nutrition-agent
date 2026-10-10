@@ -20,7 +20,13 @@ public class AppProperties {
 
     @Data
     public static class Security {
-        /** HMAC 签名密钥，生产必须通过 NA_TOKEN_SECRET 覆盖。 */
+        /**
+         * 令牌命名空间标识，<b>不是签名密钥</b>。
+         *
+         * <p>本项目的登录令牌是 256 位随机串、只把 SHA-256 散列存进 {@code sys_auth_token}，
+         * 令牌本身无法被伪造，因此不需要签名。这个值仅用于按部署环境区分命名空间
+         * （例如开发/测试共用同一份数据时避免令牌互认）。泄露它无法伪造任何令牌。
+         */
         private String tokenSecret;
         private int tokenTtlHours = 168;
         private int guestDailyChatLimit = 5;

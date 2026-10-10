@@ -15,29 +15,36 @@
 -- 唯一约束涉及的列集合）。任何一侧改动而另一侧未同步，测试会失败。
 -- =============================================================================
 
--- 先删表，关闭引用完整性检查以免受外键顺序约束
+-- 删表按「创建的逆序」：子表在父表之后创建，逆序即先删子表。
+--
+-- 为什么不只靠 SET REFERENTIAL_INTEGRITY FALSE：实测 H2 2.4.240 下它**不生效**——
+-- 在同一连接上执行它之后 DROP 父表依旧报
+-- 「Cannot drop "sys_user" because "fk_fav_user, ..." depends on it」，
+-- 且 INFORMATION_SCHEMA.SETTINGS 里查不到 REFERENTIAL_INTEGRITY 这一项。
+-- 于是旧写法「库为空时能建、库非空时删表失败」只在首次初始化时碰巧成功。
+-- 逆创建序删表不依赖任何开关，连续两轮执行都成立。
 SET REFERENTIAL_INTEGRITY FALSE;
-DROP TABLE IF EXISTS `sys_user`;
-DROP TABLE IF EXISTS `sys_role`;
-DROP TABLE IF EXISTS `sys_user_role`;
-DROP TABLE IF EXISTS `sys_auth_token`;
-DROP TABLE IF EXISTS `user_profile`;
-DROP TABLE IF EXISTS `food_category`;
-DROP TABLE IF EXISTS `food`;
-DROP TABLE IF EXISTS `food_alias`;
+DROP TABLE IF EXISTS `operation_log`;
+DROP TABLE IF EXISTS `admin_audit_log`;
+DROP TABLE IF EXISTS `user_favorite`;
+DROP TABLE IF EXISTS `image_recognition`;
+DROP TABLE IF EXISTS `chat_message`;
+DROP TABLE IF EXISTS `chat_session`;
+DROP TABLE IF EXISTS `knowledge_chunk`;
+DROP TABLE IF EXISTS `knowledge_doc`;
+DROP TABLE IF EXISTS `nutrition_value`;
+DROP TABLE IF EXISTS `data_source`;
+DROP TABLE IF EXISTS `nutrient`;
 DROP TABLE IF EXISTS `food_image`;
 DROP TABLE IF EXISTS `food_state_variant`;
-DROP TABLE IF EXISTS `nutrient`;
-DROP TABLE IF EXISTS `data_source`;
-DROP TABLE IF EXISTS `nutrition_value`;
-DROP TABLE IF EXISTS `knowledge_doc`;
-DROP TABLE IF EXISTS `knowledge_chunk`;
-DROP TABLE IF EXISTS `chat_session`;
-DROP TABLE IF EXISTS `chat_message`;
-DROP TABLE IF EXISTS `image_recognition`;
-DROP TABLE IF EXISTS `user_favorite`;
-DROP TABLE IF EXISTS `admin_audit_log`;
-DROP TABLE IF EXISTS `operation_log`;
+DROP TABLE IF EXISTS `food_alias`;
+DROP TABLE IF EXISTS `food`;
+DROP TABLE IF EXISTS `food_category`;
+DROP TABLE IF EXISTS `user_profile`;
+DROP TABLE IF EXISTS `sys_auth_token`;
+DROP TABLE IF EXISTS `sys_user_role`;
+DROP TABLE IF EXISTS `sys_role`;
+DROP TABLE IF EXISTS `sys_user`;
 SET REFERENTIAL_INTEGRITY TRUE;
 
 -- =============================================================================
@@ -384,7 +391,7 @@ CREATE TABLE `chat_message` (
   `seq`               INT         NOT NULL,
   `role`              VARCHAR(16) NOT NULL,
   `content`           TEXT            NULL,
-  `structured_output` VARCHAR(4000)   NULL,
+  `structured_output` CLOB           NULL,
   `intent`            VARCHAR(32)     NULL,
   `tool_calls`        VARCHAR(4000)   NULL,
   `model_name`        VARCHAR(64)     NULL,
@@ -456,6 +463,9 @@ CREATE TABLE `admin_audit_log` (
   `action`        VARCHAR(32)  NOT NULL,
   `target_type`   VARCHAR(32)  NOT NULL,
   `target_id`     BIGINT           NULL,
+  -- 自由文本说明（如「新增食品形态（西红柿）」）。审计列表要给人看，
+  -- 只有 action + target_id 不足以让人事后判断这次改动到底是什么。
+  `detail`        VARCHAR(512)     NULL,
   `before_json`   VARCHAR(4000)    NULL,
   `after_json`    VARCHAR(4000)    NULL,
   `ip`            VARCHAR(64)      NULL,
@@ -474,6 +484,7 @@ CREATE TABLE `operation_log` (
   `id`          BIGINT        NOT NULL AUTO_INCREMENT,
   `trace_id`    VARCHAR(64)       NULL,
   `user_id`     BIGINT            NULL,
+  `client_key`  VARCHAR(64)       NULL,
   `module`      VARCHAR(32)   NOT NULL,
   `action`      VARCHAR(64)   NOT NULL,
   `level`       VARCHAR(16)   NOT NULL DEFAULT 'INFO',
@@ -485,4 +496,5 @@ CREATE TABLE `operation_log` (
   PRIMARY KEY (`id`)
 );
 CREATE INDEX `idx_oplog_module` ON `operation_log` (`module`, `created_at`);
+CREATE INDEX `idx_oplog_client` ON `operation_log` (`client_key`, `action`, `created_at`);
 CREATE INDEX `idx_oplog_level`  ON `operation_log` (`level`, `created_at`);

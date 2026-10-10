@@ -50,6 +50,14 @@ class SeedContractTest {
     /** 前端分类徽章目录：`frontend/src/assets/categories/<slug>.svg`。 */
     private static final Path CATEGORY_ASSETS = PROJECT_ROOT().resolve("frontend/src/assets/categories");
 
+    /**
+     * 演示账号口令，与 `db/h2/data.sql` 的注释逐字一致。
+     *
+     * <p>刻意放在测试里当契约：种子数据改了散列却忘了同步文档，或反过来只改了文档，
+     * 这里就会红。演示数据是给人登录用的，口令对不上等于功能不存在。
+     */
+    private static final String DEMO_PASSWORD = "demo1234";
+
     @Autowired
     private JdbcTemplate jdbc;
 
@@ -173,13 +181,49 @@ class SeedContractTest {
     }
 
     @Test
-    @DisplayName("演示账号的密码散列必须是 BCrypt，不允许明文")
+    @DisplayName("演示账号的密码散列必须 BCrypt，且必须真的能用文档里写的口令登录")
     void demoAccountsUseBcryptHashes() {
         List<String> hashes = jdbc.queryForList("SELECT password_hash FROM sys_user", String.class);
         assertThat(hashes).isNotEmpty();
         assertThat(hashes)
                 .as("出现非 BCrypt 的密码存储（$2a$/$2b$/$2y$ 开头），演示数据也不能破例")
                 .allMatch(hash -> hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$"));
+    }
+
+    /**
+     * 演示口令的散列必须与 {@code db/h2/data.sql} 注释里写明的口令一致。
+     *
+     * <p>为什么值得单独一个测试：种子数据最初带的散列，其明文谁都对不上（逐一试过
+     * {@code password}、{@code 123456}、{@code admin}、{@code secret} 等全部失败）。
+     * 后果是<b>后台管理与个人中心在演示环境里根本登不进去</b>，而登录失败只会返回
+     * 40001，看起来像「密码打错了」，不像数据缺陷——这个 bug 因此躲过了编译、
+     * 单测和前端构建，直到手工调 {@code POST /api/v1/auth/login} 才暴露。
+     *
+     * <p>断言口径的取舍：这里把口令明文当作**契约**写死在测试里，而不是去比对
+     * 某个写死的散列字符串。两种写法都能过，但只有前者能保证「文档里写的口令
+     * 真的能登录」；散列是随机的，同一条口令每次编码结果都不同，钉死散列字符串
+     * 反而会让重新生成种子数据变成无谓的失败。
+     */
+    @Test
+    @DisplayName("演示口令 demo1234 必须能匹配种子里的散列（否则演示环境无人可登录）")
+    void seededPasswordMatchesDocumentedPlaintext() {
+        List<Map<String, Object>> users = jdbc.queryForList(
+                "SELECT username, password_hash FROM sys_user WHERE deleted_at IS NULL");
+
+        assertThat(users)
+                .as("种子必须至少提供一个可登录的演示账号")
+                .isNotEmpty();
+
+        org.springframework.security.crypto.password.PasswordEncoder encoder =
+                new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+
+        assertThat(users)
+                .as("data.sql 注释里承诺的演示口令是 demo1234，"
+                        + "但这些账号的散列与它对不上——照着文档登录会一直失败")
+                .allSatisfy(user -> assertThat(encoder.matches(
+                        DEMO_PASSWORD, String.valueOf(user.get("password_hash"))))
+                        .as("账号 %s 的散列不匹配演示口令", user.get("username"))
+                        .isTrue());
     }
 
     @Test

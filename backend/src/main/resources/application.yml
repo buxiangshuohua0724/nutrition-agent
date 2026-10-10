@@ -46,7 +46,9 @@ mybatis-plus:
 # 应用自定义配置
 # =============================================================================
 nutrition-agent:
-  # JWT 风格 HMAC 令牌（自研轻量实现）。密钥必须通过环境变量覆盖，不得提交真实密钥。
+  # 有状态登录令牌（ADR-10）：数据库只存令牌的 SHA-256 散列，原文不落盘。
+  # token-secret 不是签名密钥（令牌本身是 256 位随机串、无需签名即可防伪造），
+  # 它只用于按部署环境区分令牌命名空间；泄露它无法伪造任何令牌。
   security:
     token-secret: ${NA_TOKEN_SECRET:dev-only-secret-please-override-in-production-0123456789}
     token-ttl-hours: 168          # 7 天
@@ -70,14 +72,6 @@ nutrition-agent:
       api-key: ${NA_VISION_API_KEY:}
       model: ${NA_VISION_MODEL:}
       timeout-seconds: 30
-
-springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
-    tags-sorter: alpha
-    operations-sorter: alpha
-  api-docs:
-    path: /v3/api-docs
 
 logging:
   level:

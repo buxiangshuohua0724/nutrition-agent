@@ -96,6 +96,16 @@
       待网络可达能拉到匹配版本时再引入 springdoc。
     -->
 
+    <!-- ===== 密码哈希 =====
+         只引 spring-security-crypto，不引 spring-boot-starter-security：
+         本项目的鉴权是自研的有状态令牌（sys_auth_token 表），不需要 Security 的
+         过滤器链、会话管理或方法级安全（那套默认行为会与自研令牌互相干扰）。
+         但密码哈希必须用成熟的实现——自己写哈希是明确的安全事故。 -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-crypto</artifactId>
+    </dependency>
+
     <!-- ===== 编译期样板代码消除 ===== -->
     <dependency>
       <groupId>org.projectlombok</groupId>

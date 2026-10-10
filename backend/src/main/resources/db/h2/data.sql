@@ -28,10 +28,16 @@ INSERT INTO sys_role (id, code, name, description, created_at) VALUES
   (4, 'SYS_ADMIN', '系统管理员', '负责用户与角色授权、系统参数与运行状态管理，拥有全部权限', '2025-01-01 00:00:00');
 
 
+-- 演示账号口令（三个账号同一口令）：demo1234
+-- 下面的散列由 BCryptPasswordEncoder().encode("demo1234") 生成并经 matches() 复核为 true。
+-- 之前的散列对应的明文未知（逐一试过 password/123456/admin/secret 等均不匹配），
+-- 也就是说后台与个人中心在演示环境里根本无法登录；此处换成可复现的已知口令。
+-- 这是演示用弱口令，严禁原样上生产：上线前必须重建账号或改成环境变量注入。
+-- 散列格式以 $2a$ 开头，SeedContractTest.demoAccountsUseBcryptHashes 会校验这一点。
 INSERT INTO sys_user (id, username, email, password_hash, nickname, avatar_url, status, last_login_at, created_at, updated_at, deleted_at) VALUES
-  (1, 'admin', NULL, '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', '系统管理员', NULL, 'ACTIVE', NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', NULL),
-  (2, 'content', NULL, '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', '内容管理员', NULL, 'ACTIVE', NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', NULL),
-  (3, 'demo', NULL, '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVEFDa', '演示用户', NULL, 'ACTIVE', NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', NULL);
+  (1, 'admin', NULL, '$2a$10$FCzAAiMhHuu/XQ9UX8x7H.Xg6EAoDhmAOlAvN694pa18bMnxdMuce', '系统管理员', NULL, 'ACTIVE', NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', NULL),
+  (2, 'content', NULL, '$2a$10$FCzAAiMhHuu/XQ9UX8x7H.Xg6EAoDhmAOlAvN694pa18bMnxdMuce', '内容管理员', NULL, 'ACTIVE', NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', NULL),
+  (3, 'demo', NULL, '$2a$10$FCzAAiMhHuu/XQ9UX8x7H.Xg6EAoDhmAOlAvN694pa18bMnxdMuce', '演示用户', NULL, 'ACTIVE', NULL, '2025-01-01 00:00:00', '2025-01-01 00:00:00', NULL);
 
 -- 复合主键 (user_id, role_id)，无 id 列，故无自增序列需要重置。
 -- admin 同时挂 SYS_ADMIN 与 CONTENT_ADMIN 两个角色：PRD 3.1 要求四类角色在权限设计上
