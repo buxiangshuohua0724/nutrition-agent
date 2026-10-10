@@ -69,8 +69,8 @@ CREATE TABLE `sys_user` (
   `updated_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at`    DATETIME         NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_username` (`username`, `deleted_at`),
-  UNIQUE KEY `uk_user_email`    (`email`,    `deleted_at`)
+  CONSTRAINT `uk_user_username` UNIQUE (`username`, `deleted_at`),
+  CONSTRAINT `uk_user_email`    UNIQUE (`email`,    `deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户账户（FR-007）';
 
 DROP TABLE IF EXISTS `sys_role`;

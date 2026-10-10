@@ -60,7 +60,6 @@ CREATE TABLE `sys_user` (
   CONSTRAINT `uk_user_username` UNIQUE (`username`, `deleted_at`),
   CONSTRAINT `uk_user_email`    UNIQUE (`email`,    `deleted_at`)
 );
-CREATE INDEX `idx_user_status` ON `sys_user` (`status`);
 
 CREATE TABLE `sys_role` (
   `id`          BIGINT      NOT NULL AUTO_INCREMENT,
