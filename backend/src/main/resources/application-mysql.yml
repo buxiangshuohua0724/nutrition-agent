@@ -1,0 +1,21 @@
+# =============================================================================
+# mysql profile — 生产形态：MySQL 8.0
+# 启动：mvn spring-boot:run -Dspring-boot.run.profiles=mysql
+# 需先执行 docs/db/schema.sql 建表
+# =============================================================================
+spring:
+  datasource:
+    url: jdbc:mysql://${NA_DB_HOST:localhost}:${NA_DB_PORT:3306}/${NA_DB_NAME:nutrition_agent}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${NA_DB_USER:root}
+    password: ${NA_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+      validation-timeout: 3000
+  sql:
+    init:
+      # 建表由 docs/db/schema.sql 手工执行或部署脚本执行，应用启动不自动建表，
+      # 避免生产环境误删数据。
+      mode: never

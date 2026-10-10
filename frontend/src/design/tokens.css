@@ -1,0 +1,275 @@
+/* =============================================================================
+ * AI 食品营养师 — 设计令牌 (Design Tokens)
+ * 文件：frontend/src/design/tokens.css
+ *
+ * 本文件是前端唯一的视觉基础来源。所有页面/组件必须通过 var(--na-*) 取值，
+ * 不得硬编码色值、字号、间距。
+ *
+ * 基准色板严格照抄网页端原型图（docs/AI食品营养师网页端原型图.png 第 9 板块）：
+ *   主色   #3B82F6
+ *   辅助色 #10B981 / #F59E0B / #EF4444 / #6B7280
+ * 其余梯度由上述 5 个基准色推导，推导规则见每个色组上方注释。
+ * ========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------------------
+   * 1. 色板 — 主色 Primary（基准 #3B82F6）
+   * 推导：50/100 为向 #FFFFFF 混色 93%/86%；600/700 为向黑压暗 8%/19%
+   * ------------------------------------------------------------------------ */
+  --na-color-primary-50: #EFF6FF;
+  --na-color-primary-100: #DBEAFE;
+  --na-color-primary-500: #3B82F6;
+  --na-color-primary-600: #2563EB;
+  --na-color-primary-700: #1D4ED8;
+
+  /* 成功 Success（基准 #10B981） */
+  --na-color-success-50: #ECFDF5;
+  --na-color-success-100: #D1FAE5;
+  --na-color-success-500: #10B981;
+  --na-color-success-600: #059669;
+  --na-color-success-700: #047857;
+
+  /* 警示 Warning（基准 #F59E0B） */
+  --na-color-warning-50: #FFFBEB;
+  --na-color-warning-100: #FEF3C7;
+  --na-color-warning-500: #F59E0B;
+  --na-color-warning-600: #D97706;
+  --na-color-warning-700: #B45309;
+
+  /* 危险 Danger（基准 #EF4444） */
+  --na-color-danger-50: #FEF2F2;
+  --na-color-danger-100: #FEE2E2;
+  --na-color-danger-500: #EF4444;
+  --na-color-danger-600: #DC2626;
+  --na-color-danger-700: #B91C1C;
+
+  /* 中性 Neutral（基准 #6B7280） */
+  --na-color-neutral-50: #F9FAFB;
+  --na-color-neutral-100: #F3F4F6;
+  --na-color-neutral-200: #E5E7EB;
+  --na-color-neutral-300: #D1D5DB;
+  --na-color-neutral-500: #6B7280;
+  --na-color-neutral-600: #4B5563;
+  --na-color-neutral-700: #374151;
+
+  /* 纯色补充（原型底/面、覆盖层，不属于 5 个基准色的推导范围） */
+  --na-color-white: #FFFFFF;
+  --na-color-black: #000000;
+
+  /* ---------------------------------------------------------------------------
+   * 2. 语义色 — 组件只应引用这一层，不直接引用色板
+   * ------------------------------------------------------------------------ */
+  --na-color-text-primary: #1F2937;
+  --na-color-text-secondary: #4B5563;
+  --na-color-text-muted: #9CA3AF;
+  --na-color-text-inverse: var(--na-color-white);
+  --na-color-text-link: var(--na-color-primary-600);
+
+  --na-color-bg-page: #F5F7FA;      /* 页面底色，原型整体浅灰蓝 */
+  --na-color-bg-surface: #FFFFFF;   /* 卡片 / 面板 */
+  --na-color-bg-subtle: var(--na-color-neutral-50);
+  --na-color-bg-hover: var(--na-color-neutral-100);
+  --na-color-bg-active: var(--na-color-primary-50);
+  --na-color-bg-mask: rgba(17, 24, 39, 0.45);
+
+  --na-color-border: var(--na-color-neutral-200);
+  --na-color-border-strong: var(--na-color-neutral-300);
+  --na-color-divider: #EEF1F5;
+
+  --na-color-focus-ring: rgba(59, 130, 246, 0.35);
+
+  /* 食品分类徽章底色（与分类插画底色保持一致，见 assets/categories/） */
+  --na-color-cat-vegetables-bg: #E7F6EC;
+  --na-color-cat-fruits-bg: #FDEBEC;
+  --na-color-cat-meat-bg: #FBE9E7;
+  --na-color-cat-aquatic-bg: #E6F1FB;
+  --na-color-cat-eggs-bg: #FDF5E0;
+  --na-color-cat-grains-bg: #FBF0DA;
+  --na-color-cat-dairy-bg: #F3F4EF;
+  --na-color-cat-nuts-bg: #F5EDE4;
+  --na-color-cat-legumes-bg: #EBF5E4;
+  --na-color-cat-others-bg: #ECEFF4;
+
+  /* ---------------------------------------------------------------------------
+   * 3. 字体
+   * ------------------------------------------------------------------------ */
+  --na-font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --na-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* 字号阶梯（上限 32px，管理后台表格密集处用 xs/sm） */
+  --na-font-size-xs: 12px;
+  --na-font-size-sm: 13px;
+  --na-font-size-md: 14px;
+  --na-font-size-lg: 16px;
+  --na-font-size-xl: 20px;
+  --na-font-size-2xl: 24px;
+  --na-font-size-3xl: 28px;
+  --na-font-size-4xl: 32px;
+
+  --na-line-height-tight: 1.25;
+  --na-line-height-snug: 1.4;
+  --na-line-height-normal: 1.6;
+  --na-line-height-relaxed: 1.8;
+
+  --na-font-weight-regular: 400;
+  --na-font-weight-medium: 500;
+  --na-font-weight-semibold: 600;
+  --na-font-weight-bold: 700;
+
+  --na-letter-spacing-tight: -0.01em;
+  --na-letter-spacing-normal: 0;
+  --na-letter-spacing-wide: 0.02em;
+
+  /* ---------------------------------------------------------------------------
+   * 4. 间距 — 4px 基准
+   * ------------------------------------------------------------------------ */
+  --na-space-1: 4px;
+  --na-space-2: 8px;
+  --na-space-3: 12px;
+  --na-space-4: 16px;
+  --na-space-5: 20px;
+  --na-space-6: 24px;
+  --na-space-7: 28px;
+  --na-space-8: 32px;
+  --na-space-9: 36px;
+  --na-space-10: 40px;
+  --na-space-11: 48px;
+  --na-space-12: 64px;
+
+  /* ---------------------------------------------------------------------------
+   * 5. 圆角
+   * ------------------------------------------------------------------------ */
+  --na-radius-xs: 4px;
+  --na-radius-sm: 6px;
+  --na-radius-md: 10px;
+  --na-radius-lg: 14px;
+  --na-radius-xl: 20px;
+  --na-radius-pill: 999px;
+  --na-radius-circle: 50%;
+
+  /* ---------------------------------------------------------------------------
+   * 6. 阴影 — 三级
+   * ------------------------------------------------------------------------ */
+  --na-shadow-1: 0 1px 2px rgba(17, 24, 39, 0.05),
+                 0 1px 3px rgba(17, 24, 39, 0.06);
+  --na-shadow-2: 0 4px 8px rgba(17, 24, 39, 0.06),
+                 0 2px 4px rgba(17, 24, 39, 0.04);
+  --na-shadow-3: 0 12px 28px rgba(17, 24, 39, 0.12),
+                 0 4px 10px rgba(17, 24, 39, 0.06);
+
+  /* ---------------------------------------------------------------------------
+   * 7. 过渡时长
+   * ------------------------------------------------------------------------ */
+  --na-duration-instant: 0ms;
+  --na-duration-fast: 120ms;
+  --na-duration-base: 200ms;
+  --na-duration-slow: 320ms;
+  --na-ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+  --na-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --na-ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---------------------------------------------------------------------------
+   * 8. 层级 z-index
+   * ------------------------------------------------------------------------ */
+  --na-z-base: 0;
+  --na-z-sticky: 100;
+  --na-z-nav: 200;
+  --na-z-dropdown: 300;
+  --na-z-overlay: 400;
+  --na-z-modal: 500;
+  --na-z-toast: 600;
+
+  /* ---------------------------------------------------------------------------
+   * 9. 布局尺寸
+   * ------------------------------------------------------------------------ */
+  --na-nav-width: 184px;
+  --na-header-height: 56px;
+  --na-content-max-width: 1280px;
+  --na-control-height-sm: 28px;
+  --na-control-height-md: 36px;
+  --na-control-height-lg: 44px;
+
+  /* 图片/插画容器比例（食品插画 viewBox 160x120 = 4:3） */
+  --na-ratio-food: 4 / 3;
+  --na-ratio-square: 1 / 1;
+}
+
+/* =============================================================================
+ * 轻量 Reset
+ * ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure,
+blockquote,
+dl,
+dd,
+ol,
+ul,
+fieldset,
+legend {
+  margin: 0;
+  padding: 0;
+}
+
+ol,
+ul {
+  list-style: none;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* =============================================================================
+ * 动效降级 — 尊重系统"减少动态效果"设置
+ * ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="蛋类">
+  <title>蛋类</title>
+  <circle cx="32" cy="32" r="28" fill="#FDF5E0" />
+  <path d="M32 12.6c8.1 0 15.4 12.4 15.4 23.2 0 9.3-6.9 15.6-15.4 15.6s-15.4-6.3-15.4-15.6C16.6 25 23.9 12.6 32 12.6Z" fill="#FEF3C7" />
+  <path d="M32 17.4c6.4 0 11.6 10.1 11.6 18.5 0 7.2-5.2 12-11.6 12s-11.6-4.8-11.6-12C20.4 27.5 25.6 17.4 32 17.4Z" fill="#FFFFFF" />
+  <circle cx="32" cy="33.6" r="7.6" fill="#F59E0B" />
+  <circle cx="32" cy="33.6" r="3.4" fill="#FBBF24" />
+  <path d="M26.2 22.2c1.6-2.9 3.5-4.4 5.8-4.4-1.2 3.6-2.6 5.8-4.3 6.6-.9-.4-1.4-1.2-1.5-2.2Z" fill="#FFFFFF" opacity="0.9" />
+</svg>

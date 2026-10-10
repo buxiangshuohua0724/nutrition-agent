@@ -1,0 +1,87 @@
+# =============================================================================
+# 主配置（默认 profile，连接 MySQL）
+# =============================================================================
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: nutrition-agent
+  profiles:
+    active: mysql
+  jackson:
+    default-property-inclusion: always
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+    serialization:
+      write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      # 与 API 契约的图片上限一致（10MB），超限由业务层返回 41301
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    # 关闭 MyBatis 自带的日志实现细节，统一交给日志配置控制
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      # 逻辑删除统一用 deleted_at（[D8]），NULL 表示未删除。
+      # 注意：MyBatis-Plus 的逻辑删除默认用 0/1，此处改用时间戳，故 delete-value 置为
+      # "NOW()"，未删除值置为 "null"，与 schema.sql 的 deleted_at 语义保持一致。
+      logic-delete-field: deletedAt
+      logic-not-delete-value: 'null'
+      logic-delete-value: 'now()'
+  mapper-locations: classpath*:mapper/**/*.xml
+
+# =============================================================================
+# 应用自定义配置
+# =============================================================================
+nutrition-agent:
+  # JWT 风格 HMAC 令牌（自研轻量实现）。密钥必须通过环境变量覆盖，不得提交真实密钥。
+  security:
+    token-secret: ${NA_TOKEN_SECRET:dev-only-secret-please-override-in-production-0123456789}
+    token-ttl-hours: 168          # 7 天
+    guest-daily-chat-limit: 5     # PRD 角色A：游客有限次数 AI 问答
+    guest-daily-recognition-limit: 3
+  # 文件存储（第一版落本地磁盘；生产替换为对象存储，见 ROADMAP 技术债）
+  storage:
+    root: ${NA_STORAGE_ROOT:./data/uploads}
+    public-prefix: /api/v1/files
+  # 外部模型服务。未配置时 Agent 降级为确定性桩实现，非 AI 功能不受影响（PRD 6.5）
+  ai:
+    llm:
+      enabled: ${NA_LLM_ENABLED:false}
+      base-url: ${NA_LLM_BASE_URL:}
+      api-key: ${NA_LLM_API_KEY:}
+      model: ${NA_LLM_MODEL:}
+      timeout-seconds: 30
+    vision:
+      enabled: ${NA_VISION_ENABLED:false}
+      base-url: ${NA_VISION_BASE_URL:}
+      api-key: ${NA_VISION_API_KEY:}
+      model: ${NA_VISION_MODEL:}
+      timeout-seconds: 30
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.nutritionagent: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n"

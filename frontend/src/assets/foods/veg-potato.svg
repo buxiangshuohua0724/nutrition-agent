@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="土豆">
+  <title>土豆</title>
+  <rect x="0" y="0" width="160" height="120" rx="14" fill="#FBF4E4" />
+  <ellipse cx="80" cy="104" rx="44" ry="6" fill="#A16207" opacity="0.13" />
+  <path d="M80 26c20 0 38 14 38 34s-18 34-38 34-38-14-38-34 18-34 38-34Z" fill="#D9A44E" />
+  <path d="M80 26c-12 0-22 5-29 13 12-2 23 2 32 11-11 3-20 10-25 20 8-6 18-9 29-8-6 7-10 16-10 26 5-9 13-16 23-20 6-5 10-13 10-21 0-12-12-21-30-21Z" fill="#EBC079" opacity="0.85" />
+  <g fill="#B5832F" opacity="0.75">
+    <ellipse cx="62" cy="52" rx="4" ry="2.6" transform="rotate(-24 62 52)" />
+    <ellipse cx="96" cy="46" rx="3.6" ry="2.4" transform="rotate(18 96 46)" />
+    <ellipse cx="104" cy="76" rx="4" ry="2.6" transform="rotate(-14 104 76)" />
+    <ellipse cx="56" cy="80" rx="3.6" ry="2.4" transform="rotate(26 56 80)" />
+    <ellipse cx="80" cy="92" rx="4" ry="2.4" transform="rotate(-8 80 92)" />
+  </g>
+  <ellipse cx="66" cy="44" rx="9" ry="5.4" fill="#FFFFFF" opacity="0.4" transform="rotate(-28 66 44)" />
+</svg>

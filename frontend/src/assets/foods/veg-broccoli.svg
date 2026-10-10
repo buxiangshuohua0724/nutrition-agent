@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="西兰花">
+  <title>西兰花</title>
+  <rect x="0" y="0" width="160" height="120" rx="14" fill="#EEF8EC" />
+  <ellipse cx="80" cy="104" rx="38" ry="6" fill="#166534" opacity="0.12" />
+  <path d="M70 68h20l4 22c.4 5-2.6 8.6-14 8.6S62.6 95 63 90Z" fill="#A7D98A" />
+  <path d="M80 66v32" stroke="#86C46A" stroke-width="2.4" stroke-linecap="round" />
+  <g fill="#2F8F46">
+    <circle cx="56" cy="56" r="16" />
+    <circle cx="104" cy="56" r="16" />
+    <circle cx="80" cy="48" r="18" />
+    <circle cx="68" cy="68" r="14" />
+    <circle cx="92" cy="68" r="14" />
+  </g>
+  <g fill="#3EA457">
+    <circle cx="58" cy="52" r="9" />
+    <circle cx="102" cy="52" r="9" />
+    <circle cx="80" cy="44" r="10" />
+    <circle cx="70" cy="66" r="8" />
+    <circle cx="90" cy="66" r="8" />
+  </g>
+  <g fill="#6FCB84" opacity="0.85">
+    <circle cx="54" cy="50" r="4" />
+    <circle cx="76" cy="40" r="4.4" />
+    <circle cx="106" cy="50" r="4" />
+    <circle cx="66" cy="64" r="3.4" />
+    <circle cx="94" cy="64" r="3.4" />
+  </g>
+  <path d="M76 96c4-2 8-2 12 0" stroke="#4D7C0F" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5" />
+</svg>

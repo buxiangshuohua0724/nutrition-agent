@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.8</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.nutritionagent</groupId>
+  <artifactId>nutrition-agent-backend</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <name>nutrition-agent-backend</name>
+  <description>AI 食品营养师 — 后端服务（模块化单体）</description>
+
+  <properties>
+    <!--
+      本机 JDK 为 23，但 spring-boot 3.5.x 官方支持到 21/24。
+      显式锁定 release=21 保证构建可复现，不随开发机 JDK 漂移。
+    -->
+    <java.version>21</java.version>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <!--
+      版本选择说明：本地仓库为项目内的 `../.m2repo`（见 ../config/maven-settings.xml），
+      它是 C:\Users\16148\.m2\repository 的完整副本，上述版本均已缓存，
+      保证 `mvn -s ../config/maven-settings.xml` 在有网/无网时行为一致。
+
+      为什么不用全局 ~/.m2 + ~/.m2/settings.xml：
+        1) 全局 settings.xml 把 central 镜像到 id=alimaven 的 aliyun 地址，而离线缓存里
+           _remote.repositories 记录的来源 id 是 central，Maven 会判定"从未从该仓库下载过"
+           而拒绝使用缓存（报 has not been downloaded from it before）；
+        2) DSH 文件沙箱在 workspace-write 模式下禁止写工作区之外，Maven 无法往
+           C:\Users\16148\.m2 写入 .lastUpdated / *.part.lock，失败信息还会被 Maven
+           包装成"找不到构件"，掩盖真实原因。
+    -->
+    <mybatis-plus.version>3.5.9</mybatis-plus.version>
+    <h2.version>2.4.240</h2.version>
+    <lombok.version>1.18.42</lombok.version>
+  </properties>
+
+  <dependencies>
+    <!-- ===== Web / 校验 ===== -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+
+    <!-- ===== 持久层：MyBatis-Plus（不引入 JPA，避免两套 ORM 并存）===== -->
+    <dependency>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+      <version>${mybatis-plus.version}</version>
+    </dependency>
+    <!--
+      分页与防全表更新插件（PaginationInnerInterceptor / BlockAttackInnerInterceptor）
+      在 3.5.9 起从 mybatis-plus-extension 拆到了本模块，必须显式依赖。
+    -->
+    <dependency>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-jsqlparser</artifactId>
+      <version>${mybatis-plus.version}</version>
+    </dependency>
+
+    <!-- ===== 数据库驱动 ===== -->
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <!-- H2 仅供 dev / test profile，使后端无需外部数据库即可启动与跑测试。
+         显式覆盖版本：Spring Boot 3.5.8 默认解析到 2.3.232，而本机离线仓库中可用的是
+         2.4.240，锁死版本以保证离线可复现构建。 -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <version>${h2.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!--
+      ===== 接口文档 =====
+      刻意不引入 springdoc-openapi：本机离线仓库中可用的最高版本为 2.6.0，
+      而它对应的 Spring Boot 是 3.3.x，本项目用 3.5.8，运行期存在兼容风险。
+      接口契约以 docs/api-contract.md 为唯一权威来源（版本可评审、可 diff），
+      待网络可达能拉到匹配版本时再引入 springdoc。
+    -->
+
+    <!-- ===== 编译期样板代码消除 ===== -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>${lombok.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- ===== 测试 ===== -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>nutrition-agent-backend</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <excludes>
+            <exclude>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+            </exclude>
+          </excludes>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${maven.compiler.release}</release>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>${lombok.version}</version>
+            </path>
+          </annotationProcessorPaths>
+          <compilerArgs>
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!--
+            -Dfile.encoding=UTF-8 让测试里的中文断言/日志不依赖平台默认编码。
+
+            -XX:+EnableDynamicAgentLoading 是必需的，不是可选优化：
+            本机 JDK 为 23，而 JDK 21 起（JEP 451）默认**禁用**了运行时动态 attach
+            代理，Mockito 的 inline mock maker（Byte Buddy）依赖该机制。禁用后
+            Spring Boot 的 ResetMocksTestExecutionListener 会在初始化 Mockito 时抛：
+              java.lang.IllegalStateException: Could not initialize plugin:
+                  interface org.mockito.plugins.MockMaker (alternate: null)
+              Caused by: MockitoInitializationException:
+                  Could not initialize inline Byte Buddy mock maker.
+                  It appears as if your JDK does not supply a working agent attachment mechanism.
+                  Java : 23
+            这会让**所有** @SpringBootTest 用例连带失败（哪怕一条 mock 都没写）。
+            显式加此参数即可；不必也不应把 Mockito 降级。
+          -->
+          <argLine>-Dfile.encoding=UTF-8 -XX:+EnableDynamicAgentLoading</argLine>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

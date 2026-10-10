@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  =============================================================================
+  nutrition-agent 构建用 Maven settings
+  =============================================================================
+  为什么需要这个文件：
+
+  本机的全局 settings.xml 指向两个不可用的位置，导致 `mvn compile` 直接失败：
+    1) <localRepository> 指向 C:\Users\16148\.maven\apache-maven-3.8.5\mvn_repo，
+       该目录是空的；实际可用的依赖缓存全在 C:\Users\16148\.m2\repository。
+    2) <mirror> 把 central 镜像到 http://maven.aliyun.com/...（id=alimaven），
+       而该地址在当前网络下连接被重置（无法下载任何依赖）。
+       更麻烦的是：离线缓存里的 _remote.repositories 记录来源为 `central`，
+       与 mirror 的 id `alimaven` 不一致，Maven 会认为「该构件从未从 alimaven
+       下载过」，于是在离线模式下也拒绝使用它们
+       （报错：... has not been downloaded from it before）。
+
+  解法：把 central 镜像到 **id 也为 `central`** 的地址。这样缓存中标注
+  `>central=` 的构件与当前仓库 id 匹配，离线可直接命中；一旦网络可达，
+  也能正常下载缺失构件，不需要 `-o` 或 `-llr` 这类降级开关。
+
+  用法（在 backend/ 目录下）：
+    mvn -s ../config/maven-settings.xml compile
+    mvn -s ../config/maven-settings.xml test
+    mvn -s ../config/maven-settings.xml spring-boot:run -Dspring-boot.run.profiles=dev
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+  <!--
+    为什么用项目内的 .m2repo 而不是 C:\Users\16148\.m2\repository：
+    DSH 文件沙箱在 workspace-write 模式下**禁止写入工作区之外的路径**，
+    Maven 解析插件时需要往本地仓库写 .lastUpdated / *.part.lock /
+    下载缺失的传递依赖，写到 C:\Users\16148\.m2 会被拒绝，报
+      ... plexus-utils-1.1.jar.part.lock (系统找不到指定的路径。)
+    而 Maven 又把这类失败报成"找不到构件"，把真正原因盖掉了。
+
+    因此本地仓库改为项目内的 .m2repo —— 它是 C:\Users\16148\.m2\repository
+    的完整副本（2.18 GB / 23666 个文件，robocopy /E 拷贝），Maven 可以自由写入。
+    这样 `mvn -s ../config/maven-settings.xml test` 才能跑通。
+
+    ⚠️ .m2repo 体积很大，务必写进 .gitignore，不要提交。
+    如需刷新：robocopy C:\Users\16148\.m2\repository .m2repo /E /MT:16
+  -->
+  <localRepository>D:\ds_harness_work\nutrition-agent\.m2repo</localRepository>
+
+  <mirrors>
+    <!--
+      id 必须与缓存中 _remote.repositories 里记录的一致（即 central），
+      否则 Maven 会因为「来源仓库不匹配」而拒绝使用已缓存的构件。
+    -->
+    <mirror>
+      <id>central</id>
+      <name>central (aliyun public, id kept as 'central' to match local cache origin)</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+
+  <profiles>
+    <profile>
+      <id>jdk-release</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+      </properties>
+    </profile>
+  </profiles>
+
+</settings>

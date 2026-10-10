@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="燕麦">
+  <title>燕麦</title>
+  <rect x="0" y="0" width="160" height="120" rx="14" fill="#FBF0DA" />
+  <ellipse cx="80" cy="106" rx="44" ry="6" fill="#92400E" opacity="0.14" />
+  <g stroke="#D97706" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M62 96c-3-16-8-30-16-42" />
+    <path d="M80 96c0-18-1-32-2-44" />
+    <path d="M98 96c3-16 8-30 16-42" />
+  </g>
+  <g fill="#F59E0B">
+    <path d="M46 54c-7-3-11-8-12-15 8-1 13 2 16 9 1 3 0 6-4 6Z" />
+    <path d="M56 68c-8-2-13-7-14-14 8-1 14 2 17 9 1 3-1 6-3 5Z" />
+    <path d="M78 52c-4-6-4-13 0-19 5 5 6 12 3 18-1 2-2 2-3 1Z" />
+    <path d="M82 52c4-6 4-13 0-19-5 5-6 12-3 18 1 2 2 2 3 1Z" />
+    <path d="M114 54c7-3 11-8 12-15-8-1-13 2-16 9-1 3 0 6 4 6Z" />
+    <path d="M104 68c8-2 13-7 14-14-8-1-14 2-17 9-1 3 1 6 3 5Z" />
+  </g>
+  <g fill="#FCD34D" opacity="0.85">
+    <path d="M92 64c7-2 12-6 14-12-7-1-12 2-15 8-1 2 0 4 1 4Z" />
+    <path d="M68 64c-7-2-12-6-14-12 7-1 12 2 15 8 1 2 0 4-1 4Z" />
+  </g>
+  <path d="M60 30c8-6 18-8 28-5-10 1-18 5-25 11-3 2-5-4-3-6Z" fill="#10B981" opacity="0.9" />
+  <ellipse cx="66" cy="58" rx="5" ry="9" fill="#FFFFFF" opacity="0.28" transform="rotate(-24 66 58)" />
+</svg>

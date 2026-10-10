@@ -1,0 +1,96 @@
+/**
+ * 后台通用样式（自己维护，不修改 design/ 目录下的任何文件）
+ *
+ * 只定义两块内容：
+ *   1. 后台页面标题 / 描述（`.na-admin-page__head|__title|__desc`）；
+ *   2. 后台弹窗骨架（`.na-admin-modal` 系列）。
+ *
+ * 所有颜色与尺寸都复用 `--na-*` 设计令牌，令牌缺失时回落到内置默认值，
+ * 因此无论 design/tokens.css 是否加载成功，页面都有可用的外观。
+ */
+
+.na-admin-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--na-space-3, 12px);
+  flex-wrap: wrap;
+}
+
+.na-admin-page__title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--na-color-text, #111827);
+}
+
+.na-admin-page__desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--na-color-text-muted, #6b7280);
+}
+
+.na-admin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--na-space-4, 16px);
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.na-admin-modal__panel {
+  width: 100%;
+  max-width: 520px;
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: var(--na-space-5, 20px);
+  background: var(--na-color-surface, #ffffff);
+}
+
+.na-admin-modal__title {
+  margin: 0 0 var(--na-space-3, 12px);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.na-admin-modal__error {
+  margin: 0 0 var(--na-space-3, 12px);
+  padding: var(--na-space-2, 8px) var(--na-space-3, 12px);
+  border-radius: var(--na-radius-sm, 6px);
+  background: #fef2f2;
+  color: var(--na-color-danger, #ef4444);
+  font-size: 13px;
+}
+
+.na-admin-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--na-space-3, 12px);
+}
+
+.na-admin-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.na-admin-modal__field label {
+  font-size: 13px;
+  color: var(--na-color-text-muted, #6b7280);
+}
+
+.na-admin-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--na-space-2, 8px);
+}
+
+.na-admin-modal__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--na-color-text-muted, #9ca3af);
+}

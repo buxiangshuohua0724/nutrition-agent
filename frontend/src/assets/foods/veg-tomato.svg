@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="西红柿">
+  <title>西红柿</title>
+  <rect x="0" y="0" width="160" height="120" rx="14" fill="#FDF0EF" />
+  <ellipse cx="80" cy="104" rx="40" ry="6" fill="#EF4444" opacity="0.14" />
+  <circle cx="80" cy="70" r="38" fill="#EF4444" />
+  <path d="M80 32c-4.6 0-8.8 1-12.6 2.9C75.8 40 80 48.4 80 58c0-9.6 4.2-18 12.6-23.1A29.4 29.4 0 0 0 80 32Z" fill="#F87171" />
+  <path d="M67 46c-5.2 5-8.2 11.8-8.2 19.4 0 1.8.2 3.6.5 5.3C63.8 62 68.6 54 76 48.4 73.4 47 70.2 46.2 67 46Z" fill="#FCA5A5" opacity="0.7" />
+  <path d="M80 44.6 85.4 36l9.6 1.8-6.2 6.2 7.4 2.2-9.6 4.4H88l-8-2.6-8 2.6h-6.6l-9.6-4.4 7.4-2.2-6.2-6.2 9.6-1.8Z" fill="#10B981" transform="translate(0 -4)" />
+  <path d="M80 30c.6 4.6-.6 8-3.6 10.2" stroke="#047857" stroke-width="3.4" stroke-linecap="round" fill="none" />
+  <circle cx="66" cy="58" r="6.2" fill="#FFFFFF" opacity="0.42" />
+  <ellipse cx="94" cy="86" rx="13" ry="7.6" fill="#DC2626" opacity="0.18" />
+</svg>

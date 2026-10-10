@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="蓝莓">
+  <title>蓝莓</title>
+  <rect x="0" y="0" width="160" height="120" rx="14" fill="#F0F1FB" />
+  <ellipse cx="80" cy="104" rx="42" ry="6" fill="#3730A3" opacity="0.14" />
+  <circle cx="104" cy="76" r="21" fill="#4F46E5" />
+  <circle cx="104" cy="76" r="21" fill="none" stroke="#3730A3" stroke-width="2" />
+  <circle cx="58" cy="78" r="19" fill="#4338CA" />
+  <circle cx="58" cy="78" r="19" fill="none" stroke="#312E81" stroke-width="2" />
+  <circle cx="80" cy="56" r="26" fill="#6366F1" />
+  <circle cx="80" cy="56" r="26" fill="none" stroke="#4338CA" stroke-width="2.2" />
+  <path d="M80 56c0-5 2-9 6-11" stroke="#312E81" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.6" />
+  <path d="M80 65.6 85 58l8.8 1.6-5.6 5.6 6.6 2-8.8 4h-6Z" fill="#312E81" opacity="0.55" transform="translate(0 -5)" />
+  <path d="M80 68c-3 0-5.6 1.2-7.6 3.4-2-2.2-4.6-3.4-7.6-3.4-1 4 0 7.4 3 10.2h24.4c3-2.8 4-6.2 3-10.2-3 0-5.6 1.2-7.6 3.4C85.6 69.2 83 68 80 68Z" fill="#1E1B4B" opacity="0.45" />
+  <circle cx="68" cy="44" r="8" fill="#FFFFFF" opacity="0.35" />
+  <path d="M96 38c5-4 10-5 15-2-3 5-8 7-15 6Z" fill="#10B981" />
+  <path d="M80 30c-1-4 .4-7 4-9" stroke="#4D7C0F" stroke-width="2.8" stroke-linecap="round" fill="none" />
+</svg>

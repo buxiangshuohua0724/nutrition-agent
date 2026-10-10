@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="香蕉">
+  <title>香蕉</title>
+  <rect x="0" y="0" width="160" height="120" rx="14" fill="#FFFBEB" />
+  <ellipse cx="80" cy="104" rx="42" ry="6" fill="#B45309" opacity="0.12" />
+  <path d="M34 34c-6 22-2 40 12 52 12 10 30 12 48 6 12-4 22-12 28-22-4-8-12-10-22-6-14 6-26 4-34-6-8-11-8-20 0-26-10 0-12-8-20-8-6 0-9 4-12 10Z" fill="#FACC15" />
+  <path d="M34 34c-4 20-1 37 11 48 3 2 6 4 10 5-12-4-21-12-26-24-5-11-4-22 5-29Z" fill="#FDE68A" opacity="0.85" />
+  <path d="M42 28c2-6 6-9 12-9 6 0 14 4 22 10 6 5 11 8 17 9-4 5-10 6-18 4-9-3-16-8-23-14h-10Z" fill="#EAB308" opacity="0.55" />
+  <path d="M46 24c-3-2-6-2-9 0 1 4 4 6 9 5Z" fill="#A16207" />
+  <path d="M114 90c4-1 7-3 10-6-1-4-4-6-9-5Z" fill="#A16207" />
+  <path d="M56 44c6 10 16 15 30 14 8-1 14-3 19-7" stroke="#FEF3C7" stroke-width="3.2" stroke-linecap="round" fill="none" opacity="0.8" />
+  <ellipse cx="60" cy="44" rx="6" ry="12" fill="#FFFFFF" opacity="0.28" transform="rotate(-38 60 44)" />
+</svg>

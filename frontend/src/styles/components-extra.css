@@ -1,0 +1,149 @@
+/**
+ * 补充组件样式（本工程自维护，不修改 src/design/ 下的任何文件）
+ *
+ * 这里只定义两类东西：
+ *   1. design/base.css 没有提供、但本工程页面确实在用的中性组件类
+ *      （`.na-chip`、`.na-btn--danger`）—— 不带 `:root:not(.na-design-ready)`
+ *      前缀，因此无论正式设计令牌是否加载都保持同一套外观。
+ *   2. 各处页面共用的纯版式类（页头、详情页主区、后台表格里的多行信息块）。
+ *
+ * 全部取值都走 `--na-*` 令牌并带内置回落值：令牌缺失时仍然可用，
+ * 令牌就绪后外观自动与设计系统对齐。这里**不定义任何营养数值相关样式**。
+ */
+
+/* ── 1. 中性组件补充 ───────────────────────────────────────────── */
+
+.na-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--na-space-1, 4px);
+  padding: var(--na-space-1, 4px) var(--na-space-3, 12px);
+  font-family: inherit;
+  font-size: var(--na-font-size-sm, 13px);
+  line-height: 1.6;
+  color: var(--na-color-text-secondary, #4b5563);
+  background-color: var(--na-color-bg-surface, #ffffff);
+  border: 1px solid var(--na-color-border, #e5e7eb);
+  border-radius: var(--na-radius-pill, 999px);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.na-chip:hover:not(:disabled) {
+  color: var(--na-color-primary-600, #2563eb);
+  border-color: var(--na-color-primary-500, #3b82f6);
+}
+
+.na-chip.is-active {
+  color: var(--na-color-primary-600, #2563eb);
+  background-color: var(--na-color-primary-50, #eff6ff);
+  border-color: var(--na-color-primary-500, #3b82f6);
+}
+
+.na-chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.na-btn--danger {
+  color: var(--na-color-text-inverse, #ffffff);
+  background-color: var(--na-color-danger-500, #ef4444);
+  border-color: var(--na-color-danger-500, #ef4444);
+}
+
+.na-btn--danger:hover:not(:disabled) {
+  background-color: var(--na-color-danger-600, #dc2626);
+  border-color: var(--na-color-danger-600, #dc2626);
+}
+
+.na-btn--danger:active:not(:disabled) {
+  background-color: var(--na-color-danger-700, #b91c1c);
+  border-color: var(--na-color-danger-700, #b91c1c);
+}
+
+/* ── 2. 共用版式类 ─────────────────────────────────────────────── */
+
+/* 各页页头：标题与描述上下排列 */
+.na-search__head,
+.na-recognize__head,
+.na-categories__head,
+.na-me__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--na-space-2, 8px);
+  margin-bottom: var(--na-space-4, 16px);
+}
+
+.na-chat__head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--na-space-2, 8px);
+}
+
+.na-home__featured {
+  margin-top: var(--na-space-6, 24px);
+}
+
+/* 食品详情：左侧媒体区 + 右侧简介 / 标签页 / 相关推荐 */
+.na-detail__media {
+  display: block;
+  overflow: hidden;
+  background-color: var(--na-color-bg-subtle, #f9fafb);
+  border: 1px solid var(--na-color-border, #e5e7eb);
+  border-radius: var(--na-radius-lg, 12px);
+}
+
+.na-detail__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--na-space-3, 12px);
+}
+
+.na-detail__tabs,
+.na-detail__related,
+.na-report__panel {
+  display: block;
+  margin-top: var(--na-space-6, 24px);
+}
+
+/* 后台表格单元格里的多行信息块（名称 + 编码 / 分类 / 简介等） */
+.na-admin-food-name,
+.na-admin-food-code,
+.na-admin-food-category,
+.na-admin-food-intro,
+.na-admin-image-food,
+.na-admin-knowledge-title,
+.na-admin-knowledge-heading,
+.na-admin-knowledge-category,
+.na-admin-user-role,
+.na-admin-publish {
+  display: block;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.na-admin-food-code,
+.na-admin-food-category,
+.na-admin-knowledge-heading,
+.na-admin-knowledge-category,
+.na-admin-user-role {
+  font-size: var(--na-font-size-xs, 12px);
+  color: var(--na-color-text-muted, #6b7280);
+}
+
+.na-admin-food-intro,
+.na-admin-knowledge-content {
+  display: block;
+  margin-top: var(--na-space-1, 4px);
+  font-size: var(--na-font-size-xs, 12px);
+  color: var(--na-color-text-muted, #6b7280);
+}
+
+/* 后台标签页行与筛选行 */
+.na-admin-review__tabs,
+.na-admin-settings__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--na-space-2, 8px);
+  margin-bottom: var(--na-space-4, 16px);
+}

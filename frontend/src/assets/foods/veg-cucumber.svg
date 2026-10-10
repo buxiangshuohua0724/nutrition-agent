@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120" role="img" aria-label="黄瓜">
+  <title>黄瓜</title>
+  <rect x="0" y="0" width="160" height="120" rx="14" fill="#EDF7EE" />
+  <ellipse cx="82" cy="100" rx="46" ry="6" fill="#166534" opacity="0.12" />
+  <g transform="rotate(-28 80 66)">
+    <rect x="30" y="48" width="104" height="36" rx="18" fill="#2F8F46" />
+    <rect x="30" y="48" width="104" height="36" rx="18" fill="none" stroke="#1F6E33" stroke-width="2.4" />
+    <rect x="40" y="54" width="84" height="9" rx="4.5" fill="#65C97E" opacity="0.55" />
+    <rect x="46" y="68" width="70" height="7" rx="3.5" fill="#1F6E33" opacity="0.28" />
+    <g fill="#8AD79C" opacity="0.85">
+      <circle cx="50" cy="57" r="2" />
+      <circle cx="66" cy="63" r="1.8" />
+      <circle cx="82" cy="56" r="2" />
+      <circle cx="99" cy="63" r="1.8" />
+      <circle cx="115" cy="56" r="1.8" />
+    </g>
+    <path d="M134 62c5.4-3.2 10.6-4.2 15.6-2.8-1.8 6.4-6 10.2-12.6 11.4" fill="#3E9E55" />
+  </g>
+  <path d="M46 34c2.8-2.4 6-3.2 9.6-2.4" stroke="#7FCB90" stroke-width="3" stroke-linecap="round" fill="none" />
+</svg>

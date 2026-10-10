@@ -1,0 +1,37 @@
+# =============================================================================
+# dev profile — 开发形态：H2 内存库，零外部依赖即可启动
+# 启动：mvn spring-boot:run -Dspring-boot.run.profiles=dev
+#
+# 说明：docs/db/schema.sql 是 MySQL 语法（含 ENGINE/CHARSET/JSON/SET NAMES），
+# H2 无法直接执行，因此这里使用等价 schema 副本 db/h2/schema.sql。
+# 两份 schema 必须保持结构一致，由 SchemaParityTest 做自动化校验。
+# =============================================================================
+spring:
+  datasource:
+    url: jdbc:h2:mem:nutrition_agent;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ''
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/h2/schema.sql
+      # 演示种子数据，全部标记 DEMO 来源，严禁用于对外发布（见 docs/data-source-policy.md）
+      data-locations: classpath:db/h2/data.sql
+      continue-on-error: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+nutrition-agent:
+  ai:
+    # dev 下模型服务不可用，Agent 走确定性桩实现；这同时验证了 PRD 6.5 的降级要求
+    llm:
+      enabled: false
+    vision:
+      enabled: false
+
+logging:
+  level:
+    com.nutritionagent: DEBUG

@@ -1,0 +1,587 @@
+/* =============================================================================
+ * AI 食品营养师 — 基础样式 (Base Styles)
+ * 文件：frontend/src/design/base.css
+ *
+ * 依赖 tokens.css（必须先于本文件引入）。
+ * 只提供与业务无关的通用原子类，组件级样式写在各自 .vue 的 <style scoped> 中。
+ * ========================================================================== */
+
+/* -----------------------------------------------------------------------------
+ * 1. 排版
+ * -------------------------------------------------------------------------- */
+
+body {
+  font-family: var(--na-font-sans);
+  font-size: var(--na-font-size-md);
+  line-height: var(--na-line-height-normal);
+  color: var(--na-color-text-primary);
+  background-color: var(--na-color-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: var(--na-line-height-tight);
+  font-weight: var(--na-font-weight-semibold);
+  color: var(--na-color-text-primary);
+}
+
+h1 { font-size: var(--na-font-size-3xl); }
+h2 { font-size: var(--na-font-size-2xl); }
+h3 { font-size: var(--na-font-size-xl); }
+h4 { font-size: var(--na-font-size-lg); }
+h5 { font-size: var(--na-font-size-md); }
+h6 { font-size: var(--na-font-size-sm); }
+
+small { font-size: var(--na-font-size-xs); }
+
+::selection {
+  background-color: var(--na-color-primary-100);
+  color: var(--na-color-primary-700);
+}
+
+/* -----------------------------------------------------------------------------
+ * 2. 链接
+ * -------------------------------------------------------------------------- */
+
+a {
+  color: var(--na-color-text-link);
+  text-decoration: none;
+  transition: color var(--na-duration-fast) var(--na-ease-standard);
+}
+
+a:hover {
+  color: var(--na-color-primary-700);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:focus-visible {
+  outline: none;
+  border-radius: var(--na-radius-xs);
+  box-shadow: 0 0 0 3px var(--na-color-focus-ring);
+}
+
+/* -----------------------------------------------------------------------------
+ * 3. 焦点可见性（全站统一，必须保留以满足可访问性）
+ * -------------------------------------------------------------------------- */
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--na-color-primary-500);
+  outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+ * 4. 无障碍隐藏
+ * -------------------------------------------------------------------------- */
+
+.na-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* -----------------------------------------------------------------------------
+ * 5. 卡片
+ * -------------------------------------------------------------------------- */
+
+.na-card {
+  background-color: var(--na-color-bg-surface);
+  border: 1px solid var(--na-color-border);
+  border-radius: var(--na-radius-lg);
+  box-shadow: var(--na-shadow-1);
+  padding: var(--na-space-5);
+}
+
+.na-card--flat {
+  box-shadow: none;
+}
+
+.na-card--hoverable {
+  transition: box-shadow var(--na-duration-base) var(--na-ease-standard),
+    transform var(--na-duration-base) var(--na-ease-standard),
+    border-color var(--na-duration-base) var(--na-ease-standard);
+}
+
+.na-card--hoverable:hover {
+  box-shadow: var(--na-shadow-2);
+  border-color: var(--na-color-border-strong);
+  transform: translateY(-2px);
+}
+
+.na-card__title {
+  font-size: var(--na-font-size-lg);
+  font-weight: var(--na-font-weight-semibold);
+  margin-bottom: var(--na-space-3);
+}
+
+/* -----------------------------------------------------------------------------
+ * 6. 按钮
+ * -------------------------------------------------------------------------- */
+
+.na-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--na-space-2);
+  min-height: var(--na-control-height-md);
+  padding: 0 var(--na-space-4);
+  font-family: inherit;
+  font-size: var(--na-font-size-md);
+  font-weight: var(--na-font-weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--na-color-text-secondary);
+  background-color: var(--na-color-bg-surface);
+  border: 1px solid var(--na-color-border);
+  border-radius: var(--na-radius-md);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--na-duration-fast) var(--na-ease-standard),
+    border-color var(--na-duration-fast) var(--na-ease-standard),
+    color var(--na-duration-fast) var(--na-ease-standard),
+    box-shadow var(--na-duration-fast) var(--na-ease-standard);
+}
+
+.na-btn:hover:not(:disabled) {
+  background-color: var(--na-color-bg-hover);
+  border-color: var(--na-color-border-strong);
+  color: var(--na-color-text-primary);
+}
+
+.na-btn:active:not(:disabled) {
+  background-color: var(--na-color-neutral-200);
+}
+
+.na-btn:disabled,
+.na-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.na-btn--primary {
+  color: var(--na-color-text-inverse);
+  background-color: var(--na-color-primary-500);
+  border-color: var(--na-color-primary-500);
+  box-shadow: var(--na-shadow-1);
+}
+
+.na-btn--primary:hover:not(:disabled) {
+  color: var(--na-color-text-inverse);
+  background-color: var(--na-color-primary-600);
+  border-color: var(--na-color-primary-600);
+}
+
+.na-btn--primary:active:not(:disabled) {
+  background-color: var(--na-color-primary-700);
+  border-color: var(--na-color-primary-700);
+}
+
+.na-btn--ghost {
+  color: var(--na-color-text-secondary);
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.na-btn--ghost:hover:not(:disabled) {
+  color: var(--na-color-primary-600);
+  background-color: var(--na-color-primary-50);
+  border-color: transparent;
+}
+
+.na-btn--ghost:active:not(:disabled) {
+  background-color: var(--na-color-primary-100);
+}
+
+.na-btn--sm {
+  min-height: var(--na-control-height-sm);
+  padding: 0 var(--na-space-3);
+  font-size: var(--na-font-size-sm);
+  border-radius: var(--na-radius-sm);
+}
+
+.na-btn--block {
+  width: 100%;
+}
+
+/* -----------------------------------------------------------------------------
+ * 7. 输入框
+ * -------------------------------------------------------------------------- */
+
+.na-input {
+  display: block;
+  width: 100%;
+  min-height: var(--na-control-height-md);
+  padding: 0 var(--na-space-3);
+  font-family: inherit;
+  font-size: var(--na-font-size-md);
+  color: var(--na-color-text-primary);
+  background-color: var(--na-color-bg-surface);
+  border: 1px solid var(--na-color-border);
+  border-radius: var(--na-radius-md);
+  transition: border-color var(--na-duration-fast) var(--na-ease-standard),
+    box-shadow var(--na-duration-fast) var(--na-ease-standard);
+}
+
+.na-input::placeholder {
+  color: var(--na-color-text-muted);
+}
+
+.na-input:hover:not(:disabled) {
+  border-color: var(--na-color-border-strong);
+}
+
+.na-input:focus {
+  outline: none;
+  border-color: var(--na-color-primary-500);
+  box-shadow: 0 0 0 3px var(--na-color-focus-ring);
+}
+
+.na-input:disabled {
+  background-color: var(--na-color-bg-hover);
+  color: var(--na-color-text-muted);
+  cursor: not-allowed;
+}
+
+.na-input--error {
+  border-color: var(--na-color-danger-500);
+}
+
+.na-input--error:focus {
+  box-shadow: 0 0 0 3px var(--na-color-danger-100);
+}
+
+textarea.na-input {
+  min-height: 88px;
+  padding: var(--na-space-2) var(--na-space-3);
+  line-height: var(--na-line-height-snug);
+  resize: vertical;
+}
+
+select.na-input {
+  cursor: pointer;
+  appearance: none;
+  padding-right: var(--na-space-8);
+  background-image: linear-gradient(45deg, transparent 50%, var(--na-color-text-muted) 50%),
+    linear-gradient(135deg, var(--na-color-text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* -----------------------------------------------------------------------------
+ * 8. 徽章
+ * -------------------------------------------------------------------------- */
+
+.na-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--na-space-1);
+  padding: 2px var(--na-space-2);
+  font-size: var(--na-font-size-xs);
+  font-weight: var(--na-font-weight-medium);
+  line-height: var(--na-line-height-snug);
+  white-space: nowrap;
+  border-radius: var(--na-radius-pill);
+  color: var(--na-color-text-secondary);
+  background-color: var(--na-color-neutral-100);
+}
+
+.na-badge--success {
+  color: var(--na-color-success-700);
+  background-color: var(--na-color-success-50);
+}
+
+.na-badge--warning {
+  color: var(--na-color-warning-700);
+  background-color: var(--na-color-warning-50);
+}
+
+.na-badge--danger {
+  color: var(--na-color-danger-700);
+  background-color: var(--na-color-danger-50);
+}
+
+.na-badge--muted {
+  color: var(--na-color-neutral-600);
+  background-color: var(--na-color-neutral-100);
+}
+
+.na-badge--primary {
+  color: var(--na-color-primary-700);
+  background-color: var(--na-color-primary-50);
+}
+
+/* -----------------------------------------------------------------------------
+ * 9. 标签（可点击的筛选胶囊，与只读徽章区分）
+ * -------------------------------------------------------------------------- */
+
+.na-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--na-space-1);
+  padding: var(--na-space-1) var(--na-space-3);
+  font-size: var(--na-font-size-sm);
+  line-height: var(--na-line-height-snug);
+  color: var(--na-color-text-secondary);
+  background-color: var(--na-color-bg-surface);
+  border: 1px solid var(--na-color-border);
+  border-radius: var(--na-radius-pill);
+  cursor: pointer;
+  transition: color var(--na-duration-fast) var(--na-ease-standard),
+    background-color var(--na-duration-fast) var(--na-ease-standard),
+    border-color var(--na-duration-fast) var(--na-ease-standard);
+}
+
+.na-tag:hover {
+  color: var(--na-color-primary-600);
+  border-color: var(--na-color-primary-500);
+}
+
+.na-tag.is-active {
+  color: var(--na-color-text-inverse);
+  background-color: var(--na-color-primary-500);
+  border-color: var(--na-color-primary-500);
+}
+
+.na-tag--static {
+  cursor: default;
+}
+
+.na-tag--static:hover {
+  color: var(--na-color-text-secondary);
+  border-color: var(--na-color-border);
+}
+
+/* -----------------------------------------------------------------------------
+ * 10. 表格
+ * -------------------------------------------------------------------------- */
+
+.na-table {
+  width: 100%;
+  font-size: var(--na-font-size-sm);
+  background-color: var(--na-color-bg-surface);
+  border-radius: var(--na-radius-md);
+  overflow: hidden;
+}
+
+.na-table th,
+.na-table td {
+  padding: var(--na-space-3) var(--na-space-4);
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--na-color-divider);
+}
+
+.na-table thead th {
+  font-weight: var(--na-font-weight-semibold);
+  font-size: var(--na-font-size-xs);
+  letter-spacing: var(--na-letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--na-color-text-secondary);
+  background-color: var(--na-color-bg-subtle);
+  white-space: nowrap;
+}
+
+.na-table tbody tr {
+  transition: background-color var(--na-duration-fast) var(--na-ease-standard);
+}
+
+.na-table tbody tr:hover {
+  background-color: var(--na-color-bg-subtle);
+}
+
+.na-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.na-table--numeric td,
+.na-table--numeric th {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -----------------------------------------------------------------------------
+ * 11. 空状态
+ * -------------------------------------------------------------------------- */
+
+.na-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--na-space-3);
+  padding: var(--na-space-10) var(--na-space-6);
+  text-align: center;
+  color: var(--na-color-text-muted);
+}
+
+.na-empty__icon {
+  width: 48px;
+  height: 48px;
+  color: var(--na-color-neutral-300);
+}
+
+.na-empty__title {
+  font-size: var(--na-font-size-lg);
+  font-weight: var(--na-font-weight-medium);
+  color: var(--na-color-text-secondary);
+}
+
+.na-empty__desc {
+  font-size: var(--na-font-size-sm);
+  max-width: 42ch;
+  line-height: var(--na-line-height-normal);
+}
+
+/* -----------------------------------------------------------------------------
+ * 12. 加载骨架
+ * -------------------------------------------------------------------------- */
+
+.na-skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--na-color-neutral-100);
+  border-radius: var(--na-radius-sm);
+  min-height: 1em;
+}
+
+.na-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: na-skeleton-shimmer 1.4s var(--na-ease-standard) infinite;
+}
+
+@keyframes na-skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.na-skeleton--text {
+  height: 0.9em;
+  margin-bottom: var(--na-space-2);
+  border-radius: var(--na-radius-xs);
+}
+
+.na-skeleton--title {
+  height: 1.4em;
+  width: 40%;
+  margin-bottom: var(--na-space-3);
+  border-radius: var(--na-radius-xs);
+}
+
+.na-skeleton--avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--na-radius-circle);
+}
+
+.na-skeleton--image {
+  width: 100%;
+  aspect-ratio: var(--na-ratio-food);
+  border-radius: var(--na-radius-md);
+}
+
+.na-skeleton--card {
+  height: 120px;
+  border-radius: var(--na-radius-lg);
+}
+
+/* -----------------------------------------------------------------------------
+ * 13. 标签页（食品详情页：基本信息 / 营养成分 / 功效与作用 / 适宜人群 / 注意事项 / 食用建议）
+ * -------------------------------------------------------------------------- */
+
+.na-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--na-space-1);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--na-color-divider);
+  scrollbar-width: thin;
+}
+
+.na-tab {
+  position: relative;
+  flex: 0 0 auto;
+  padding: var(--na-space-3) var(--na-space-4);
+  font-size: var(--na-font-size-sm);
+  font-weight: var(--na-font-weight-medium);
+  color: var(--na-color-text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--na-radius-sm) var(--na-radius-sm) 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--na-duration-fast) var(--na-ease-standard),
+    background-color var(--na-duration-fast) var(--na-ease-standard);
+}
+
+.na-tab:hover:not(:disabled) {
+  color: var(--na-color-primary-600);
+  background-color: var(--na-color-primary-50);
+}
+
+.na-tab.is-active {
+  color: var(--na-color-primary-600);
+}
+
+.na-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: var(--na-space-3);
+  right: var(--na-space-3);
+  bottom: -1px;
+  height: 2px;
+  border-radius: var(--na-radius-pill);
+  background-color: var(--na-color-primary-500);
+}
+
+.na-tab:disabled {
+  color: var(--na-color-text-muted);
+  cursor: not-allowed;
+}
+
+/* -----------------------------------------------------------------------------
+ * 14. 工具类
+ * -------------------------------------------------------------------------- */
+
+.na-text-muted { color: var(--na-color-text-muted); }
+.na-text-secondary { color: var(--na-color-text-secondary); }
+.na-text-danger { color: var(--na-color-danger-600); }
+.na-text-success { color: var(--na-color-success-600); }
+.na-numeric { font-variant-numeric: tabular-nums; }
+
+.na-divider {
+  height: 1px;
+  border: 0;
+  background-color: var(--na-color-divider);
+  margin: var(--na-space-4) 0;
+}
