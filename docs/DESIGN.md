@@ -443,69 +443,86 @@ frontend/
 ├─ index.html
 ├─ package.json                 Vue 3.5 / Vite 5 / Vue Router 4 / Pinia 2
 ├─ vite.config.js               dev 代理 /api → http://localhost:8080
-├─ .env.development             VITE_USE_MOCK=true
+├─ .env.example                 VITE_API_BASE=/api/v1（无 mock 开关，见 7.2）
 └─ src/
    ├─ main.js                   应用入口，挂载 Pinia 与 Router
    ├─ App.vue
-   ├─ api/                      接口层：mock / http 双实现，可开关
-   │  ├─ index.js               按 VITE_USE_MOCK 选择实现并导出统一门面
-   │  ├─ http.js                fetch 封装：注入 Bearer 令牌、解析 ApiResponse、按 code 抛错
-   │  ├─ mock.js                mock 实现（对齐 docs/api-contract.md 的示例响应）
-   │  └─ dto.md                 字段来源说明，指向 docs/api-contract.md
+   ├─ api/                      接口层：每个模块一个文件，直接请求真实后端
+   │  ├─ client.js              fetch 封装：注入 Bearer 令牌、解析 ApiResponse、按 code 抛 ApiError、
+   │  │                         上传（FormData）、resolveFileUrl、401 时清令牌
+   │  ├─ error-codes.js         错误码 → 中文提示映射
+   │  ├─ foods.js               食品列表 / 详情 / 营养表 / 计算
+   │  ├─ nutrition.js           营养表与折算（含形态归属校验）
+   │  ├─ agent.js               问答（把后端的 ChatResponse 摊平成契约 3.5 形状）
+   │  ├─ recognitions.js        图片识别
+   │  ├─ knowledge.js           知识库检索
+   │  ├─ users.js               注册 / 登录 / 个人中心 / 收藏 / 历史
+   │  ├─ admin.js               后台 17 个接口
+   │  ├─ demo-data.js           开发期演示数据集（**由脚本生成，不得手改**，见 7.2）
+   │  └─ demo-dataset.js        `scripts/gen_demo_dataset.py` 的生成物（86686 字节）
+   ├─ utils/
+   │  ├─ dev.js                 演示数据兜底的唯一实现：withDemoFallback / withEmptyPageFallback
+   │  ├─ format.js              展示格式化唯一出口：formatNutrition（值 + 单位）、三态文案
+   │  ├─ assets.js rich-text.js roles.js validators.js
    ├─ design/                   设计令牌与基础样式
    │  ├─ tokens.css             原型板块 9：主色 #3B82F6，辅色 #10B981 / #F59E0B / #EF4444 / #6B7280
    │  └─ base.css               排版、间距、通用类
-   ├─ components/               通用组件
+   ├─ layouts/                  页面骨架（含后台布局）
+   ├─ components/               通用组件（21 个）
    │  ├─ FoodCard.vue           energyAvailable=false 时渲染"暂无数据"（严禁 0 兜底）
    │  ├─ NutritionTable.vue     三态渲染：PRESENT / ZERO / MISSING
-   │  ├─ ValueStatusText.vue    三态文案与样式统一出口
-   │  ├─ SourceTag.vue          来源展示（sources 由后端注入）
-   │  ├─ VariantSwitcher.vue    形态切换（生/熟/去皮/加工）
-   │  ├─ UncertaintyNotice.vue  uncertainty 非空时必须可见
-   │  └─ CandidateList.vue      识别候选 + confidence + 手动搜索入口
+   │  ├─ CalorieRing.vue NutrientBar.vue SkeletonBlock.vue
+   │  ├─ SourceList.vue         来源展示（sources 由后端注入）
+   │  ├─ ConfidenceBadge.vue UploadDropzone.vue SearchBox.vue CategoryChips.vue
+   │  ├─ EmptyState.vue PaginationBar.vue NoticeBanner.vue ConfirmDialog.vue ToastHost.vue
+   │  ├─ AppHeader.vue AppSidebar.vue AdminSidebar.vue NavIcon.vue RichText.vue
+   │  └─ FoodImage.vue
    ├─ views/                    页面（对齐 ROADMAP 路由表）
-   │  ├─ HomeView.vue                    /
-   │  ├─ SearchView.vue                  /search
-   │  ├─ CategoryView.vue                /category/:slug
-   │  ├─ FoodDetailView.vue              /food/:id
-   │  ├─ ChatView.vue                    /chat
-   │  ├─ RecognizeView.vue               /recognize
-   │  ├─ ReportView.vue                  /report/:foodId
-   │  ├─ LoginView.vue                   /login
-   │  ├─ MeView.vue                      /me
+   │  ├─ HomeView.vue CategoriesView.vue CategoryView.vue SearchView.vue
+   │  ├─ FoodDetailView.vue ReportView.vue ChatView.vue RecognizeView.vue
+   │  ├─ LoginView.vue MeView.vue MeSettingsView.vue FavoritesView.vue HistoryView.vue
+   │  ├─ NotFoundView.vue
    │  └─ admin/
-   │     ├─ AdminLayout.vue              /admin
-   │     ├─ FoodAdminView.vue            /admin/foods
-   │     ├─ NutritionAdminView.vue       /admin/nutrition
-   │     ├─ KnowledgeAdminView.vue       /admin/knowledge
-   │     └─ UserAdminView.vue            /admin/users
+   │     ├─ AdminFoodsView.vue AdminNutritionView.vue AdminKnowledgeView.vue
+   │     ├─ AdminImagesView.vue AdminReviewView.vue AdminSettingsView.vue
    ├─ stores/                   Pinia
    │  ├─ auth.js                令牌与当前用户
    │  ├─ chat.js                会话与消息
-   │  └─ food.js                搜索与详情缓存
+   │  ├─ favorites.js history.js toast.js
    └─ router/
       └─ index.js               路由表 + 权限守卫（/admin/** 校验角色）
 ```
 
-### 7.2 API 层 mock / http 双实现切换机制
+> **与本文件历史版本的差异**：早期版本这里画的是 `api/index.js` + `api/mock.js` + `api/http.js`
+> 的「mock / http 双实现按开关切换」结构，并配 `VITE_USE_MOCK=true`。该结构**从未落地**：
+> 仓库里没有 `api/index.js`、`api/mock.js`、`api/http.js`、`api/dto.md`，也没有 `.env.development`，
+> 更没有任何地方读 `VITE_USE_MOCK`。实际实现见 7.2。
+
+### 7.2 接口调用与演示数据兜底机制
+
+**没有 mock / http 双实现，也没有切换开关。** 真实实现只有一条路径：每个 `api/*.js`
+直接请求后端，由 `frontend/src/utils/dev.js` 提供**仅在开发模式下生效、且仅在请求失败时**
+才启用的演示数据兜底。
 
 ```mermaid
 graph LR
-    V["View / Store"] --> F["api/index.js<br/>统一门面"]
-    F --> S{"VITE_USE_MOCK"}
-    S -->|"true（默认）"| M["api/mock.js<br/>内存数据"]
-    S -->|"false"| H["api/http.js<br/>fetch → 后端"]
-    M --> C["同一套 DTO 形状<br/>对齐 api-contract.md"]
-    H --> C
+    V["View / Store"] --> A["api/foods.js · nutrition.js · agent.js<br/>recognitions.js · knowledge.js · users.js · admin.js"]
+    A --> D["withDemo(loader, demoFactory)<br/>（api/demo-data.js，转发 utils/dev.js）"]
+    D --> R{"真实请求成功？"}
+    R -->|"成功"| H["data = 后端响应<br/>isDemoData = false"]
+    R -->|"失败 且 import.meta.env.DEV"| M["data = demoFactory()<br/>isDemoData = true → 页面显示「演示数据」横幅"]
+    R -->|"失败 且 生产构建"| E["data = null，error 非空<br/>页面显示错误态"]
 ```
 
 | 要点 | 说明 |
 | --- | --- |
-| 切换开关 | `VITE_USE_MOCK`；默认 `true`，实现"接口先行、前后端并行"（`README.md:115-116`） |
-| 同一门面 | View/Store **只 import `api/index.js`**，不感知实现，切换零改动 |
-| DTO 一致性 | `mock.js` 的字段名、类型、三态语义必须与 `docs/api-contract.md` 完全一致；**mock 里也要能造出 `MISSING` 与 `energyAvailable=false`**，否则三态渲染无法在前端验证 |
-| 错误路径 | mock 同样按 `code` 抛错（如 `40002`、`40401`），使前端的错误分支在无后端时也可测 |
-| 切换后验证 | 切到 `http` 后必须回归 `/`、`/search`、`/food/:id`、`/chat`、`/recognize`、`/report/:foodId` 六条主链路 |
+| 没有开关 | 不存在 `VITE_USE_MOCK`（全仓库零引用）。默认**永远**请求真实接口，`api/*.js` 里没有「先判断用哪套实现」的分支 |
+| 统一返回形状 | 每个接口返回 `{ data, isDemoData, error }`，**不抛异常**（`utils/dev.js:23` `withDemoFallback`）；调用方据 `isDemoData` 决定是否显示「演示数据」横幅 |
+| 兜底只在开发模式 | `frontend/src/utils/dev.js:13` `isDemoFallbackEnabled = Boolean(import.meta.env.DEV)`；`vite build` 下为 `false`，兜底彻底失效——**绝不能用假数据掩盖线上问题** |
+| 列表页的兜底是空结果 | `withEmptyPageFallback`（`utils/dev.js:50`）返回空 `list` 而不是伪造条目；「后端未就绪」用空态说明比编造条目诚实 |
+| 演示数据来源 | `frontend/src/api/demo-data.js` 是**手写的演示样本 + 兜底转发**；其中大规模营养表与回答样本另由 `scripts/gen_demo_dataset.py` 生成到 `demo-dataset.js`（生成物，不得手改） |
+| DTO 一致性 | 演示数据集的字段名、类型、三态语义必须与 `docs/api-contract.md` 一致，**且要能造出 `MISSING` 与 `energyAvailable=false`**，否则三态渲染无法在前端验证；约束由 `scripts/check_contract.py` 与 `frontend/scripts/verify-answer.mjs` 守住 |
+| 错误路径 | 生产构建下真实接口的 `code`（如 `40002`、`40401`）由 `client.js` 抛 `ApiError`，各页面按错误码渲染提示 |
 
 ### 7.3 路由表（对齐 `docs/ROADMAP.md` 的「原型界面 → 页面实现对照」）
 
@@ -513,23 +530,33 @@ graph LR
 | --- | --- | --- | --- | --- |
 | `/` | 首页 | 1. 首页（整体布局） | FR-001 | 公开 |
 | `/search` | 搜索结果页 | 2. 食品搜索 / 分类浏览页 | FR-002 | 公开 |
+| `/categories` | 分类总览页 | 2. 食品搜索 / 分类浏览页 | FR-002 | 公开 |
 | `/category/:slug` | 分类浏览页 | 2. 食品搜索 / 分类浏览页 | FR-002 | 公开 |
 | `/food/:id` | 食品详情页 | 3. 食品详情页 | FR-003、FR-004 | 公开 |
 | `/chat` | AI 营养师问答页 | 4. AI 营养师问答页 | FR-005、FR-011 | 公开（游客限次） |
 | `/recognize` | 图片识别页 | 5. 图片识别页 | FR-006 | 公开（游客限次） |
 | `/report/:foodId` | 营养分析报告页 | 6. 营养分析报告页 | FR-004、FR-012 | 公开 |
 | `/login` | 登录与注册（单页双态） | 侧边栏「我的健康」 | FR-007 | 公开 |
-| `/me` | 个人中心（含收藏与历史） | 侧边栏「我的健康」 | FR-007、FR-008 | 登录 |
+| `/me` | 个人中心 | 侧边栏「我的健康」 | FR-007、FR-008 | 登录 |
+| `/me/favorites` | 我的收藏 | 侧边栏「我的健康」 | FR-008 | 登录 |
+| `/me/history` | 浏览历史 | 侧边栏「我的健康」 | FR-008 | 登录 |
+| `/me/settings` | 账号设置 | 侧边栏「我的健康」 | FR-007 | 登录 |
 | `/admin` | 后台管理首页 | 7. 管理后台（示例） | FR-009 | `CONTENT_ADMIN` / `SYS_ADMIN` |
 | `/admin/foods` | 食品管理页 | 7. 管理后台（示例） | FR-009 | 同上 |
+| `/admin/images` | 图片管理页 | 7. 管理后台（示例） | FR-009 | 同上 |
 | `/admin/nutrition` | 营养数据管理页 | 7. 管理后台（示例） | FR-009 | 同上 |
 | `/admin/knowledge` | 知识库管理页 | 7. 管理后台（示例） | FR-010 | 同上 |
-| `/admin/users` | 用户与权限管理页 | 7. 管理后台（示例） | 角色 D | `SYS_ADMIN` |
-| `/docs` | 说明页（承载流程图等说明性内容） | 8. 主要功能流程图 | — | 公开 |
+| `/admin/review` | 内容审核页 | 7. 管理后台（示例） | FR-009 | 同上 |
+| `/admin/settings` | 系统设置页 | 7. 管理后台（示例） | — | `SYS_ADMIN` |
+| `/:pathMatch(.*)*` | 404 页 | — | — | 公开 |
 
 > 原型板块 9（设计风格参考）不产生路由，落在 `frontend/src/design/tokens.css`。
-> `docs/ROADMAP.md:30` 要求实现侧边栏的「我的健康」入口，落在 `/me`。
+> `docs/ROADMAP.md:30` 要求实现侧边栏的「我的健康」入口，落在 `/me`（及其 `/me/favorites`、
+> `/me/history`、`/me/settings` 子页）。
 > 路由守卫只做**体验层**拦截（无权限时跳转），真正的权限判定必须在后端（`40301`）。
+> **本表已按 `frontend/src/router/index.js` 的实际路由逐条核对**：早先版本里写的 `/admin/users`
+> 与 `/docs` 两个路由**并不存在**（用户管理并入 `/admin/settings`，「说明页」只在文档里），
+> 而实际存在的 `/categories`、`/admin/images`、`/admin/review` 与 404 路由未列入，均已补正。
 
 ### 7.4 前端必须遵守的三态渲染规则
 

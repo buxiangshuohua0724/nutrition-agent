@@ -457,7 +457,7 @@ CREATE TABLE `chat_message` (
   -- Agent 结构化输出整体存 JSON：answer/foodReferences/nutritionFacts/
   -- recommendations/warnings/sources/uncertainty（PRD 6.4）
   -- 存 JSON 而非拆表的原因：字段按问题类型选择性返回，强结构化会产生大量 NULL 列
-  `structured_output` JSON           NULL,
+  `structured_output` MEDIUMTEXT     NULL COMMENT '结构化回答快照（AgentAnswer）。用文本而不是 JSON 列：回答里会带上全部营养事实，实测已超过 4KB，放 JSON 列会被长度上限截断',
   `intent`           VARCHAR(32)     NULL COMMENT '识别出的意图，用于评估与统计（PRD 2.2 工具调用成功率）',
   `tool_calls`       JSON            NULL COMMENT '工具调用轨迹，用于可解释性与回归测试',
   `model_name`       VARCHAR(64)     NULL COMMENT '实际使用的模型标识',
@@ -536,6 +536,7 @@ CREATE TABLE `admin_audit_log` (
   `action`        VARCHAR(32)  NOT NULL COMMENT 'CREATE / UPDATE / DELETE / PUBLISH / OFFLINE / REVIEW / REINDEX / LOGIN',
   `target_type`   VARCHAR(32)  NOT NULL COMMENT 'FOOD / VARIANT / NUTRITION / KNOWLEDGE / IMAGE / USER / CONFIG',
   `target_id`     BIGINT           NULL,
+  `detail`        VARCHAR(512)     NULL COMMENT '自由文本说明，如「新增食品形态（西红柿）」；审计列表要给人看，只有 action + target_id 不足以事后判断改了什么',
   `before_json`   JSON             NULL COMMENT '变更前快照（PRD 2.2 / 9.3 要求可追溯修改前后）',
   `after_json`    JSON             NULL COMMENT '变更后快照',
   `ip`            VARCHAR(64)      NULL,
@@ -555,6 +556,11 @@ CREATE TABLE `operation_log` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT,
   `trace_id`    VARCHAR(64)      NULL COMMENT '链路追踪 ID',
   `user_id`     BIGINT           NULL,
+  -- 游客限流的计数键（PRD 5.2：游客有限次数 AI 问答与图片识别）。
+  -- 不存 IP 明文：写入的是 SHA-256(token_secret + 客户端 IP) 的十六进制摘要，
+  -- 与 chat_session.guest_key 同一口径。它只用于「同一来源在窗口内算了几次」，
+  -- 不是身份标识，也无法用 IP 字典反查出具体地址。
+  `client_key`  VARCHAR(64)      NULL COMMENT '游客限流键（IP 的单向摘要，不存明文）',
   `module`      VARCHAR(32)  NOT NULL COMMENT 'FOOD / NUTRITION / AGENT / RECOGNITION / AUTH / ADMIN',
   `action`      VARCHAR(64)  NOT NULL,
   `level`       VARCHAR(16)  NOT NULL DEFAULT 'INFO' COMMENT 'INFO / WARN / ERROR',
@@ -566,6 +572,7 @@ CREATE TABLE `operation_log` (
   `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_oplog_module` (`module`, `created_at`),
+  KEY `idx_oplog_client` (`client_key`, `action`, `created_at`),
   KEY `idx_oplog_level`  (`level`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志（限流、错误统计、模型调用统计）';
 

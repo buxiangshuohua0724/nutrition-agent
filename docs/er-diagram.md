@@ -11,12 +11,14 @@
 
 | 依据文件 | 版本 | 本文使用的部分 |
 | --- | --- | --- |
-| [`docs/db/schema.sql`](db/schema.sql) | V1.0（560 行，21 张表） | **唯一权威 schema 定义**：表、列、类型、可空、默认值、注释、索引、UNIQUE、CHECK、外键 |
-| [`docs/api-contract.md`](api-contract.md) | V1.0（490 行） | 三态响应字段语义（`valueStatus` / `amount` / `displayText` / `energyAvailable` / `incomplete`）、错误码 `40901` / `40001` |
+| [`docs/db/schema.sql`](db/schema.sql) | V1.0（603 行，21 张表） | **唯一权威 schema 定义**：表、列、类型、可空、默认值、注释、索引、UNIQUE、CHECK、外键 |
+| [`docs/api-contract.md`](api-contract.md) | V1.0（560 行） | 三态响应字段语义（`valueStatus` / `amount` / `displayText` / `energyAvailable` / `incomplete`）、错误码 `40901` / `40001` |
 | [`docs/use-cases.md`](use-cases.md) | V1.0（442 行） | 业务规则 R01~R22 的强制点、UC-01~UC-38 与表的对应关系、待确认 T-01~T-10 |
-| [`docs/DESIGN.md`](DESIGN.md) | V1.0（595 行） | ADR-01~ADR-12、前端三态渲染规则、待确认 A-01~A-08 |
-| [`docs/data-source-policy.md`](data-source-policy.md) | V1.0（680 行） | 可追溯链路、发布门禁 LG-01~LG-14、自检 SQL C-01~C-07 |
+| [`docs/DESIGN.md`](DESIGN.md) | V1.0（596 行） | ADR-01~ADR-12、前端三态渲染规则、待确认 A-01~A-08 |
+| [`docs/data-source-policy.md`](data-source-policy.md) | V1.0（704 行） | 可追溯链路、发布门禁 LG-01~LG-14、自检 SQL C-01~C-07 |
 | PRD | V1.0（1090 行） | 5.3 食品详情、5.4 营养成分与计算、5.9 后台内容管理、6.x Agent 设计、11.x 初始化要求 |
+
+> **行数与行号（2026-10 复核）**：上表行数为 2026-10 实测值（`[IO.File]::ReadAllLines().Count`），成稿时的旧值依次为 560 / 490 / 442 / 595 / 680 / 1090 行。本文正文中的 `docs/db/schema.sql:NNN` 行号引用、第 2.1 节的「schema.sql 行」区间、第 9 节校验输出与文件属性表均写于成稿时；`schema.sql` 此后增长到 603 行（新增 `admin_audit_log.detail`、`operation_log.client_key` 等），这些行号已整体漂移，**判据一律以 schema 原文为准**。
 
 ### 1.2 权威性与变更规则
 
@@ -98,7 +100,7 @@ erDiagram
         VARCHAR email "可空 唯一键含 deleted_at"
         VARCHAR password_hash "BCrypt 散列 禁止明文"
         VARCHAR status "ACTIVE DISABLED LOCKED"
-        DATETIME deleted_at "NULL 表示未删除"
+        DATETIME deleted_at "NULL 表示未删除 唯一键含生成列 gd_deleted_key"
     }
     sys_role {
         BIGINT id PK "自增主键"
@@ -229,7 +231,7 @@ erDiagram
         BIGINT id PK "自增主键"
         VARCHAR code UK "稳定编码 一经使用不得改名"
         VARCHAR name "如 中国食物成分表第6版"
-        VARCHAR source_type "DATABASE GUIDELINE PAPER OFFICIAL DEMO"
+        VARCHAR source_type "OFFICIAL DATABASE GUIDELINE LITERATURE STANDARD COMMERCIAL OTHER DEMO CUSTOM"
         VARCHAR publisher "发布机构"
         VARCHAR version "版本或版次"
         DATE publish_date "发布日期"
@@ -258,7 +260,7 @@ erDiagram
 - **来源不可为空**：`nutrition_value.source_id` 是 `NOT NULL` 外键（[`docs/db/schema.sql:316`](db/schema.sql)、[`docs/db/schema.sql:340`](db/schema.sql)）。这是“来源可追溯率 100%”（PRD 2.2）的唯一结构前提；若允许 `NULL`，该指标立刻退化为“不可测”。演示数据也必须挂一条 `source_type='DEMO'` 的来源，使“演示”本身成为可追溯信息。
 - **单位不落在数据行上**：`nutrition_value` 没有任何 `unit` 列，单位来自 `nutrient.unit` / `base_unit` / `unit_factor`（ADR-03，[`docs/DESIGN.md:263-271`](DESIGN.md)）。汇总时先换算到 `base_unit`，避免 g 与 mg 直接相加。
 - **三态由约束锁定**：`ck_nv_status_amount` CHECK 要求 `MISSING → amount IS NULL`、`ZERO → amount = 0`、`PRESENT → amount IS NOT NULL`（[`docs/db/schema.sql:333-337`](db/schema.sql)）。
-- **同一形态同一营养素同一口径只允许一条有效记录**：`uk_nv_variant_nutrient(variant_id, nutrient_id, reference_amount, reference_unit, deleted_at)`（[`docs/db/schema.sql:328`](db/schema.sql)），防止汇总时重复计算。
+- **同一形态同一营养素同一口径只允许一条有效记录**：`uk_nv_variant_nutrient(variant_id, nutrient_id, reference_amount, reference_unit, deleted_at, gd_deleted_key)`（[`docs/db/schema.sql:362`](db/schema.sql)），防止汇总时重复计算。末列的 `gd_deleted_key` 是把未删除行的 NULL 归一为哨兵值的生成列，没有它这条唯一键对未删除行不生效（见 4.1 / 4.13 节与 8.1 节 G-01）。
 
 ### 3.4 图 4 — 知识库（域 D）
 
@@ -368,7 +370,7 @@ erDiagram
         BIGINT id PK "自增主键"
         BIGINT user_id FK "收藏人"
         BIGINT food_id FK "被收藏食品"
-        DATETIME deleted_at "唯一键含此列 允许取消后重新收藏"
+        DATETIME deleted_at "唯一键含此列与生成列 gd_deleted_key 允许取消后重新收藏"
     }
     admin_audit_log {
         BIGINT id PK "自增主键"
@@ -377,6 +379,7 @@ erDiagram
         VARCHAR action "CREATE UPDATE DELETE PUBLISH OFFLINE REVIEW REINDEX LOGIN"
         VARCHAR target_type "FOOD VARIANT NUTRITION KNOWLEDGE IMAGE USER CONFIG"
         BIGINT target_id "多态目标 无外键"
+        VARCHAR detail "自由文本说明 如 新增食品形态 西红柿"
         JSON before_json "变更前快照"
         JSON after_json "变更后快照"
         VARCHAR ip "来源地址"
@@ -489,8 +492,9 @@ erDiagram
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 创建时间（schema 无注释） |
 | `updated_at` | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间（schema 无注释） |
 | `deleted_at` | DATETIME | Y | — | 逻辑删除时间，NULL = 未删除 |
+| `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``（H2 侧写作 `` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')) ``）。**为什么需要它**：MySQL 与 H2 的唯一索引里 **NULL 与 NULL 互不相等**，若唯一键只写到 `deleted_at` 为止，未删除行（`deleted_at IS NULL`）之间**根本不受唯一性约束**，可以插入任意多条重名、重邮箱的记录；本列把未删除行的 NULL 归一为哨兵值 `1970-01-01 00:00:00` 再追加到唯一键末尾，未删除行之间才会真正互相冲突（唯一性生效），而软删之后哨兵值不同，仍可重建同名记录（G-01 的守护点）。**代价**：同一逻辑身份在同一**秒**内被软删两次会被唯一键拒绝——正常业务流程下不可能发生，宁严勿松。**可空列为何写 N**：schema 未显式写 `NOT NULL`，但 `IFNULL(...)` 的结果不可能为 NULL |
 
-键与索引：`PRIMARY KEY (id)`；`uk_user_username UNIQUE (username, deleted_at)`；`uk_user_email UNIQUE (email, deleted_at)`。
+键与索引：`PRIMARY KEY (id)`；`uk_user_username UNIQUE (username, deleted_at, gd_deleted_key)`；`uk_user_email UNIQUE (email, deleted_at, gd_deleted_key)`。两个键末列的 `gd_deleted_key` 是上表所述的归一化生成列，没有它这两条唯一键对未删除行形同虚设（见下方说明与 8.1 节 G-01）。
 
 ### 4.2 `sys_role` — 角色
 
@@ -579,8 +583,9 @@ erDiagram
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 创建时间（schema 无注释） |
 | `updated_at` | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间（schema 无注释） |
 | `deleted_at` | DATETIME | Y | — | 逻辑删除，NULL = 未删除 |
+| `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``。把未删除行的 `deleted_at` NULL 归一为哨兵值 `1970-01-01 00:00:00`，让 `uk_category_slug (slug, deleted_at, gd_deleted_key)` 对未删除行**真正生效**——唯一索引里 NULL 互不相等，只写 `deleted_at` 时重复 slug 不会被拒绝；软删后哨兵值不同，故仍可重建同名分类。完整机理与代价（同秒两次软删被拒）见 4.1 节；守护 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` |
 
-键与索引：`PRIMARY KEY (id)`；`uk_category_slug UNIQUE (slug, deleted_at)`；`KEY idx_category_parent (parent_id)`。
+键与索引：`PRIMARY KEY (id)`；`uk_category_slug UNIQUE (slug, deleted_at, gd_deleted_key)`；`KEY idx_category_parent (parent_id)`。
 外键：`fk_category_parent (parent_id) → food_category(id)`（**自引用**）。
 
 ### 4.7 `food` — 食品主表
@@ -612,8 +617,9 @@ erDiagram
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 创建时间（schema 无注释） |
 | `updated_at` | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间（schema 无注释） |
 | `deleted_at` | DATETIME | Y | — | 逻辑删除，NULL = 未删除 |
+| `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``。把未删除行的 `deleted_at` NULL 归一为哨兵值 `1970-01-01 00:00:00`，让 `uk_food_code (code, deleted_at, gd_deleted_key)` 对未删除行**真正生效**——唯一索引里 NULL 互不相等，只写 `deleted_at` 时同一 `code` 可插入多条未删除记录；软删后哨兵值不同，故仍可重建同一编码。完整机理与代价（同秒两次软删被拒）见 4.1 节；守护 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` |
 
-键与索引：`PRIMARY KEY (id)`；`uk_food_code UNIQUE (code, deleted_at)`；`KEY idx_food_name (name)`；`KEY idx_food_category (category_id)`；`KEY idx_food_publish (publish_status, review_status, deleted_at)`（schema 注释：**前台查询几乎恒带此条件，独立索引避免回表后再过滤**）。
+键与索引：`PRIMARY KEY (id)`；`uk_food_code UNIQUE (code, deleted_at, gd_deleted_key)`；`KEY idx_food_name (name)`；`KEY idx_food_category (category_id)`；`KEY idx_food_publish (publish_status, review_status, deleted_at)`（schema 注释：**前台查询几乎恒带此条件，独立索引避免回表后再过滤**）。
 外键：`fk_food_category (category_id) → food_category(id)`。
 
 > **`food` 表没有任何 `source_id` 列**，但 `suitable_for` / `cautions` / `common_usage` 这些最需要出处的字段都在这里 —— 见 8.2 节 G-03。
@@ -631,8 +637,9 @@ erDiagram
 | `weight` | INT | N | `0` | 别名匹配权重，越大越优先 |
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 创建时间（schema 无注释） |
 | `deleted_at` | DATETIME | Y | — | 逻辑删除，NULL = 未删除 |
+| `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``。把未删除行的 `deleted_at` NULL 归一为哨兵值 `1970-01-01 00:00:00`，让 `uk_alias_food (food_id, alias, deleted_at, gd_deleted_key)` 对未删除行**真正生效**——唯一索引里 NULL 互不相等，只写 `deleted_at` 时同一食品下重复别名不会被拒绝；软删后哨兵值不同，故仍可重建同名别名。完整机理与代价（同秒两次软删被拒）见 4.1 节；守护 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` |
 
-键与索引：`PRIMARY KEY (id)`；`uk_alias_food UNIQUE (food_id, alias, deleted_at)`；`KEY idx_alias_alias (alias)`。
+键与索引：`PRIMARY KEY (id)`；`uk_alias_food UNIQUE (food_id, alias, deleted_at, gd_deleted_key)`；`KEY idx_alias_alias (alias)`。
 外键：`fk_alias_food (food_id) → food(id)`。
 schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食品下同一别名不重复；跨食品同名别名在服务层做冲突校验**。
 
@@ -680,8 +687,9 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 创建时间（schema 无注释） |
 | `updated_at` | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间（schema 无注释） |
 | `deleted_at` | DATETIME | Y | — | 逻辑删除，NULL = 未删除 |
+| `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``。把未删除行的 `deleted_at` NULL 归一为哨兵值 `1970-01-01 00:00:00`，让 `uk_variant_food_state (food_id, state, cooking_method, deleted_at, gd_deleted_key)` 对未删除行**真正生效**——唯一索引里 NULL 互不相等，只写 `deleted_at` 时同一食品的重复形态（含 `cooking_method IS NULL` 的那种）不会被拒绝；软删后哨兵值不同，故仍可重建同形态。完整机理与代价（同秒两次软删被拒）见 4.1 节；守护 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` |
 
-键与索引：`PRIMARY KEY (id)`；`uk_variant_food_state UNIQUE (food_id, state, cooking_method, deleted_at)`；`KEY idx_variant_food (food_id)`；`KEY idx_variant_publish (publish_status, review_status, deleted_at)`。
+键与索引：`PRIMARY KEY (id)`；`uk_variant_food_state UNIQUE (food_id, state, cooking_method, deleted_at, gd_deleted_key)`；`KEY idx_variant_food (food_id)`；`KEY idx_variant_publish (publish_status, review_status, deleted_at)`。
 外键：`fk_variant_food (food_id) → food(id)`。
 
 > `cooking_method` 参与唯一键且**可空**，因此“state=COOKED 时必填”这条业务要求既没有 CHECK 也没有触发器兜底（见 8.2 节 G-09）；`is_default` 没有任何唯一约束（见 G-04）。
@@ -712,14 +720,14 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 
 ### 4.12 `data_source` — 数据来源
 
-表注释：`数据来源 [D4]：营养数据可追溯率 100% 的基础`；定义位置 [`docs/db/schema.sql:286-302`](db/schema.sql)。
+表注释：`数据来源 [D4]：营养数据可追溯率 100% 的基础`；定义位置 [`docs/db/schema.sql:314-334`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
 | `id` | BIGINT | N | AUTO_INCREMENT | 自增主键 |
 | `code` | VARCHAR(64) | N | — | 来源编码（schema 无注释） |
 | `name` | VARCHAR(255) | N | — | 如《中国食物成分表》第6版 |
-| `source_type` | VARCHAR(24) | N | `'DATABASE'` | DATABASE 成分数据库 / GUIDELINE 膳食指南 / PAPER 文献 / OFFICIAL 官方文件 / DEMO 演示数据 |
+| `source_type` | VARCHAR(24) | N | `'DATABASE'` | 来源类型。取值域由 `ck_source_type` CHECK 强制，共 9 个：`OFFICIAL` 官方文件 / `DATABASE` 成分数据库 / `GUIDELINE` 膳食指南 / `LITERATURE` 文献 / `STANDARD` 标准 / `COMMERCIAL` 商业资料 / `OTHER` 其他 / `DEMO` 演示数据 / `CUSTOM` 自定义 |
 | `publisher` | VARCHAR(255) | Y | — | 发布机构 |
 | `version` | VARCHAR(64) | Y | — | 版本/版次 |
 | `publish_date` | DATE | Y | — | 发布日期（PRD 5.10 要求记录发布日期或版本） |
@@ -757,8 +765,9 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 创建时间（schema 无注释） |
 | `updated_at` | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间（schema 无注释） |
 | `deleted_at` | DATETIME | Y | — | 逻辑删除，NULL = 未删除 |
+| `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``。把未删除行的 `deleted_at` NULL 归一为哨兵值 `1970-01-01 00:00:00`，让 `uk_nv_variant_nutrient (variant_id, nutrient_id, reference_amount, reference_unit, deleted_at, gd_deleted_key)` 对未删除行**真正生效**——唯一索引里 NULL 互不相等，只写 `deleted_at` 时同一形态同一指标同一口径可重复录入，**汇总时会重复计算**；软删后哨兵值不同，故仍可重建同一口径的记录。完整机理与代价（同秒两次软删被拒）见 4.1 节；守护 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` |
 
-键与索引：`PRIMARY KEY (id)`；`uk_nv_variant_nutrient UNIQUE (variant_id, nutrient_id, reference_amount, reference_unit, deleted_at)`；`KEY idx_nv_variant (variant_id)`；`KEY idx_nv_nutrient (nutrient_id)`；`KEY idx_nv_source (source_id)`。
+键与索引：`PRIMARY KEY (id)`；`uk_nv_variant_nutrient UNIQUE (variant_id, nutrient_id, reference_amount, reference_unit, deleted_at, gd_deleted_key)`；`KEY idx_nv_variant (variant_id)`；`KEY idx_nv_nutrient (nutrient_id)`；`KEY idx_nv_source (source_id)`。
 CHECK：`ck_nv_status_amount`（[`docs/db/schema.sql:333-337`](db/schema.sql)）：
 ```sql
 CONSTRAINT `ck_nv_status_amount` CHECK (
@@ -801,7 +810,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 键与索引：`PRIMARY KEY (id)`；`KEY idx_kdoc_publish (publish_status, review_status, deleted_at)`；`KEY idx_kdoc_category (category)`。**无 UNIQUE 键。**
 外键：`fk_kdoc_source (source_id) → data_source(id)`。
 
-> 本表**没有 `code` 列**；[`docs/data-source-policy.md`](data-source-policy.md) §6.4 / §6.5 的 C-04 / C-05 自检 SQL 原先查询了不存在的 `kd.code`，**已改用 `kd.title`**（知识引用标识是 `KDOC_<docId 四位补零>#chunk<chunkIndex>`）。见 8.2 节 G-18。
+> 本表**没有 `code` 列**；[`docs/data-source-policy.md`](data-source-policy.md) §6.4 / §6.5 的 C-04 / C-05 自检 SQL 原先查询了不存在的 `kd.code`，**已改用 `kd.title`**（知识引用标识是 `KDOC_<docId 四位补零>#chunk<chunkId>`：`chunkId` 是 `knowledge_chunk.id` 全局自增主键，**不是** `chunk_index`；见 8.2 节 G-18）。
 
 ### 4.15 `knowledge_chunk` — 知识分块
 
@@ -908,13 +917,14 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 | `food_id` | BIGINT | N | — | 被收藏食品 |
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 收藏时间（schema 无注释） |
 | `deleted_at` | DATETIME | Y | — | 取消收藏时间，NULL = 有效 |
+| `gd_deleted_key` | DATETIME | N | — | **生成列**（不落盘）：`` GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL ``。把未删除（`deleted_at IS NULL`，即“仍在收藏中”）的行归一为哨兵值 `1970-01-01 00:00:00`，让 `uk_fav_user_food (user_id, food_id, deleted_at, gd_deleted_key)` 对生效行**真正生效**——唯一索引里 NULL 互不相等，只写 `deleted_at` 时同一用户可以重复收藏同一食品；取消收藏后哨兵值不同，故可以再次收藏。完整机理与代价（同秒两次软删被拒）见 4.1 节；守护 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` |
 
-键与索引：`PRIMARY KEY (id)`；`uk_fav_user_food UNIQUE (user_id, food_id, deleted_at)`（schema 注释：**含 deleted_at：允许取消收藏后重新收藏**）；`KEY idx_fav_user (user_id, created_at)`。
+键与索引：`PRIMARY KEY (id)`；`uk_fav_user_food UNIQUE (user_id, food_id, deleted_at, gd_deleted_key)`（schema 注释：**含 deleted_at：允许取消收藏后重新收藏**）；`KEY idx_fav_user (user_id, created_at)`。
 外键：`fk_fav_user (user_id) → sys_user(id)`；`fk_fav_food (food_id) → food(id)`。
 
 ### 4.20 `admin_audit_log` — 后台操作审计
 
-表注释：`后台操作审计（PRD 9.3）`；定义位置 [`docs/db/schema.sql:496-511`](db/schema.sql)。
+表注释：`后台操作审计（PRD 9.3）`；定义位置 [`docs/db/schema.sql:531-548`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
@@ -924,6 +934,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 | `action` | VARCHAR(32) | N | — | CREATE / UPDATE / DELETE / PUBLISH / OFFLINE / REVIEW / REINDEX / LOGIN |
 | `target_type` | VARCHAR(32) | N | — | FOOD / VARIANT / NUTRITION / KNOWLEDGE / IMAGE / USER / CONFIG |
 | `target_id` | BIGINT | Y | — | 目标 id（多态，schema 无注释） |
+| `detail` | VARCHAR(512) | Y | — | 自由文本说明（schema 注释：如「新增食品形态（西红柿）」；审计列表要给人看，只有 action + target_id 不足以事后判断改了什么） |
 | `before_json` | JSON | Y | — | 变更前快照（PRD 2.2 / 9.3 要求可追溯修改前后） |
 | `after_json` | JSON | Y | — | 变更后快照 |
 | `ip` | VARCHAR(64) | Y | — | 来源 IP（schema 无注释） |
@@ -934,13 +945,14 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 ### 4.21 `operation_log` — 操作日志
 
-表注释：`操作日志（限流、错误统计、模型调用统计）`；定义位置 [`docs/db/schema.sql:518-534`](db/schema.sql)。
+表注释：`操作日志（限流、错误统计、模型调用统计）`；定义位置 [`docs/db/schema.sql:554-577`](db/schema.sql)。
 
 | 列名 | 类型 | 可空 | 默认值 | 含义 |
 | --- | --- | :---: | --- | --- |
 | `id` | BIGINT | N | AUTO_INCREMENT | 自增主键 |
 | `trace_id` | VARCHAR(64) | Y | — | 链路追踪 ID |
 | `user_id` | BIGINT | Y | — | 关联用户（**无外键**） |
+| `client_key` | VARCHAR(64) | Y | — | 游客限流键（schema 注释：IP 的单向摘要，不存明文；`SHA-256(token_secret + 客户端 IP)` 十六进制摘要，与 `chat_session.guest_key` 同一口径） |
 | `module` | VARCHAR(32) | N | — | FOOD / NUTRITION / AGENT / RECOGNITION / AUTH / ADMIN |
 | `action` | VARCHAR(64) | N | — | 操作动作（schema 无注释） |
 | `level` | VARCHAR(16) | N | `'INFO'` | INFO / WARN / ERROR |
@@ -950,7 +962,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 | `duration_ms` | INT | Y | — | 耗时（schema 无注释） |
 | `created_at` | DATETIME | N | CURRENT_TIMESTAMP | 记录时间（schema 无注释） |
 
-键与索引：`PRIMARY KEY (id)`；`KEY idx_oplog_module (module, created_at)`；`KEY idx_oplog_level (level, created_at)`。**无外键、无 `deleted_at`。**
+键与索引：`PRIMARY KEY (id)`；`KEY idx_oplog_module (module, created_at)`；`KEY idx_oplog_client (client_key, action, created_at)`；`KEY idx_oplog_level (level, created_at)`。**无外键、无 `deleted_at`。**
 
 ---
 
@@ -1082,7 +1094,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 | ~~C-1~~ | ~~`value_status` 被描述为 `ENUM('PRESENT','ZERO','MISSING')`~~ → ✅ 已消除 | schema 头部设计说明、`docs/DESIGN.md` ADR-02 | **已统一**：文档与 schema 都写 `VARCHAR(16) NOT NULL DEFAULT 'MISSING'`，并注明为何不用 ENUM（H2 `MODE=MySQL` 不支持 ENUM，dev/test 必须能建同一套表）；取值域由 `ck_nv_status_amount` + 应用层 Java 枚举双重兜住。见 G-02 |
 | ~~C-2~~ | ~~`data_source` 被要求填 `remark` 字段（A 级来源逐条说明五条判据）~~ → ✅ 已消除 | `docs/data-source-policy.md` §1.4 / §2.1 / §2.2 等 14 处 | **已统一为 `note VARCHAR(512)`**；另把原本误指到 `note` 的引用改到真正存在的落点（`nutrition_value.source_detail` / `reference_note`、`admin_audit_log`）。见 G-18 |
 | ~~C-3~~ | ~~自检 SQL C-02 查询 `nv.unit`~~ → ✅ 已消除 | `docs/data-source-policy.md` §6.2 | **已改为 `JOIN nutrient n ON n.id = nv.nutrient_id` 后校验 `n.unit`**（单位在字典，[D3]），并补上 `reference_amount > 0` 与“能量必须用 kcal/kJ”两类语义检查。见 G-18 |
-| ~~C-4~~ | ~~自检 SQL C-04 / C-05 查询 `kd.code`~~ → ✅ 已消除 | `docs/data-source-policy.md` §6.4 / §6.5 | **已改用 `kd.title`**；`knowledge_doc` 本就没有 `code` 列，其引用标识是 `KDOC_<docId 四位补零>#chunk<chunkIndex>`。见 G-18 |
+| ~~C-4~~ | ~~自检 SQL C-04 / C-05 查询 `kd.code`~~ → ✅ 已消除 | `docs/data-source-policy.md` §6.4 / §6.5 | **已改用 `kd.title`**；`knowledge_doc` 本就没有 `code` 列，其引用标识是 `KDOC_<docId 四位补零>#chunk<chunkId>`（`chunkId` = `knowledge_chunk.id`，非 `chunk_index`）。见 G-18 |
 | ~~C-5~~ | ~~来源分级表把级别映射到 `LITERATURE / STANDARD / COMMERCIAL / OTHER / CUSTOM`，schema 注释域只有五个取值~~ → ✅ 已消除 | `docs/data-source-policy.md` §1.3、`docs/db/schema.sql` 的 `data_source` | **已取「政策文档定域」方案**：`source_type` 取值域统一为 `OFFICIAL/DATABASE/GUIDELINE/LITERATURE/STANDARD/COMMERCIAL/OTHER/DEMO/CUSTOM`，由 `ck_source_type` CHECK 在 MySQL 与 H2 两侧强制；`PAPER` 这一旧取值已删除（学术文献统一用 `LITERATURE`）。三处一致性由 `SchemaParityTest.sourceTypeDomainMatchesPolicy` 守护。见 G-18 |
 | C-6 | 交付物清单引用 `nutrition_agent/docs/PRD.md` | [`docs/ROADMAP.md:36`](ROADMAP.md)、[`README.md:7`](README.md) | 文件确实在**另一个目录**（下划线 `nutrition_agent`），不在本仓库 `nutrition-agent/docs/` 下；本文 1.3 节已注明 |
 | C-7 | 令牌方案：`README.md:38` 说“有状态令牌，令牌哈希落在 `sys_auth_token`，登出即删除该行”；[`docs/DESIGN.md:338`](DESIGN.md) ADR-10 说“自研 `TokenService`（HMAC-SHA256 签名令牌）”，并把 A-01 列为待确认 | README、DESIGN ADR-10 | schema 的结构（`token_hash` UNIQUE + `expires_at` NOT NULL + `revoked_at` 可空）**完全支持有状态可撤销令牌**；本文以 schema 为准记录为“有状态令牌表”，并保留该冲突（G-19） |
@@ -1144,7 +1156,7 @@ flowchart LR
 
 | 编号 | 项目 | 现状 | 风险 | 建议 | 关联 |
 | --- | --- | --- | --- | --- | --- |
-| ~~**G-01**~~ | ~~唯一键含 `deleted_at` 后**对未删除行失效**~~ → ✅ **已修复（2026-10 修订）** | **原现状**：8 张表的唯一键把 `deleted_at` 作为最后一列（`uk_user_username`、`uk_user_email`、`uk_category_slug`、`uk_food_code`、`uk_alias_food`、`uk_variant_food_state`、`uk_nv_variant_nutrient`、`uk_fav_user_food`）。在 MySQL / H2 中 **`NULL` 互不相等**，因此两行 `deleted_at IS NULL` 的记录可以拥有完全相同的键值 —— 唯一性**没有被真正强制** | **原风险**：①同一 `code` 可出现多条未删除食品；②同一用户可出现两条 `username` 相同记录；③同一形态同一营养素可重复录入，`uk_nv_variant_nutrient` 名存实亡，**汇总时重复计算**；④`docs/DESIGN.md` ADR-08 当时写“MySQL 中 NULL 不参与唯一性比较，正好使未删除行保持互斥”，该判断与数据库实际行为**相反** | **已按建议①修复**：8 张表各新增生成列 `gd_deleted_key`（MySQL：`DATETIME GENERATED ALWAYS AS (IFNULL(\`deleted_at\`, '1970-01-01 00:00:00')) VIRTUAL`；H2：`TIMESTAMP AS (IFNULL(\`deleted_at\`, TIMESTAMP '1970-01-01 00:00:00'))`），并把该列追加到上述 8 个唯一键末尾。ADR-08 的相反判断已删除线标注纠正。**遗留**：①`deleted_at` 必须是 NULL 才表示未删除（哨兵值写法未采用）；②同秒两次软删会被唯一键拒绝，属可接受的宁严勿松 | 已由 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` 卡住（含 `nullSafeCount == 8` 期望值） |
+| ~~**G-01**~~ | ~~唯一键含 `deleted_at` 后**对未删除行失效**~~ → ✅ **已修复（2026-10 修订）** | **原现状**：7 张表的 8 个唯一键把 `deleted_at` 作为最后一列（`uk_user_username`、`uk_user_email`、`uk_category_slug`、`uk_food_code`、`uk_alias_food`、`uk_variant_food_state`、`uk_nv_variant_nutrient`、`uk_fav_user_food`）。在 MySQL / H2 中 **`NULL` 互不相等**，因此两行 `deleted_at IS NULL` 的记录可以拥有完全相同的键值 —— 唯一性**没有被真正强制** | **原风险**：①同一 `code` 可出现多条未删除食品；②同一用户可出现两条 `username` 相同记录；③同一形态同一营养素可重复录入，`uk_nv_variant_nutrient` 名存实亡，**汇总时重复计算**；④`docs/DESIGN.md` ADR-08 当时写“MySQL 中 NULL 不参与唯一性比较，正好使未删除行保持互斥”，该判断与数据库实际行为**相反** | **已按建议①修复**：7 张表各新增生成列 `gd_deleted_key`（MySQL：`DATETIME GENERATED ALWAYS AS (IFNULL(\`deleted_at\`, '1970-01-01 00:00:00')) VIRTUAL`；H2：`TIMESTAMP AS (IFNULL(\`deleted_at\`, TIMESTAMP '1970-01-01 00:00:00'))`），并把该列追加到上述 8 个唯一键末尾。ADR-08 的相反判断已删除线标注纠正。**遗留**：①`deleted_at` 必须是 NULL 才表示未删除（哨兵值写法未采用）；②同秒两次软删会被唯一键拒绝，属可接受的宁严勿松 | 已由 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` 卡住（含 `nullSafeCount == 8` 期望值） |
 | ~~**G-02**~~ | ~~`value_status` 实际是 `VARCHAR(16)` 而非 ENUM~~ → ✅ **已修复（2026-10 修订）** | **原现状**：schema 头部设计说明与 ADR-02 都写作 `ENUM('PRESENT','ZERO','MISSING')`，实际列是 `VARCHAR(16)` | **原风险**：取值域仅由 `ck_nv_status_amount` **间接**限制 | **已按建议（改文档）修复**：`docs/db/schema.sql` 头部 `[D2]`、`docs/DESIGN.md` ADR-02 均改为 `VARCHAR(16) NOT NULL DEFAULT 'MISSING'`，并写明**为何不能用 ENUM**（H2 2.x `MODE=MySQL` 不支持 ENUM，而 dev/test 必须能在 H2 建同一套表）。取值域由 `ck_nv_status_amount`（语义）+ 应用层 Java 枚举（取值）双重兜住 | 原关联 C-1；见 `docs/DESIGN.md` ADR-02「取值域类型说明」 |
 | **G-03** | `food` 表**没有 `source_id`** | `suitable_for`（适宜人群）、`cautions`（注意事项）、`common_usage`、`origin` 等字段都直接挂在 `food` 上，而这些恰恰是最需要出处的内容；`food` 表没有任何来源列 | 这些字段无法自动校验来源，只能靠内容管理员自觉与 `admin_audit_log` 事后追溯；“有依据时填写”（[`docs/db/schema.sql:167`](db/schema.sql)）中的“有依据”**没有结构载体** | ①为 `food` 增加可空 `source_id`（或单独的 `food_source` 关联表，支持一条食品多来源），并配套发布门禁；②若坚持不加列，则必须在 `data-source-policy.md` 的 §3.2 明确“食品基础信息不建来源、由审计留痕替代”，并在后台 UI 强制填写引用说明 | 政策 §3.2 |
 | **G-04** | `food_state_variant.is_default` 无唯一约束 | 同一食品可以有任意多行 `is_default = 1`（[`docs/db/schema.sql:243`](db/schema.sql)） | 详情页“默认形态”不确定，`variantId` 省略时的计算结果随查询顺序变化（同一份数据两次访问可能给出不同形态的营养值） | 服务层设置新默认时清除旧的，并补并发测试；数据库侧可用生成列 `default_flag AS (IF(is_default=1, food_id, NULL)) STORED` + 唯一索引实现 | A-06 |
@@ -1166,7 +1178,7 @@ flowchart LR
 
 | 编号 | 项目 | 现状 | 风险 | 建议 | 关联 |
 | --- | --- | --- | --- | --- | --- |
-| ~~**G-18**~~ | ~~政策文档与 schema 的四处不一致~~ → ✅ **已修复（2026-10 修订）** | **原现状**：C-2（`data_source.remark` 不存在，实为 `note`）、C-3（C-02 查询不存在的 `nv.unit`）、C-4（C-04/C-05 查询不存在的 `kd.code`）、C-5（分级表使用的 `source_type` 取值超出 schema 注释域） | **原风险**：C-02 / C-04 / C-05 三条“来源可追溯率 100%”自检 SQL **跑不起来**（未知列）；分级映射与 `source_type` 实际取值错位会使门禁判据失去依据 | **已修**：①`remark` → `note`（14 处，另把指错表的引用改到真正存在的落点：`nutrition_value.source_detail` / `reference_note`、`admin_audit_log`）；②C-02 改为 `JOIN nutrient` 后校验 `n.unit`，并卡 `reference_amount > 0` 与“能量必须用 kcal/kJ”；③C-04/C-05 去掉 `kd.code`，改用 `kd.title`（引用标识是 `KDOC_<id>#chunk<n>`，`knowledge_doc` 本就没有 `code` 列）；④`source_type` 取值域统一为 `OFFICIAL/DATABASE/GUIDELINE/LITERATURE/STANDARD/COMMERCIAL/OTHER/DEMO/CUSTOM`，**由 `ck_source_type` CHECK 在 MySQL 与 H2 两侧强制**，与 `data-source-policy.md` §1.3 逐字一致；⑤顺带修正 C-03 注释里写反的通过条件（“永不为空” → “永不返回行”）与 LG-04/N2 里把 `unit` 当 `nutrition_value` 列的错误落点。**遗留**：`COMMERCIAL`/`OTHER` 是否该进 schema 曾是开放问题，本次选择「按政策文档定域」而非「收敛政策」，已在 `data-source-policy.md` 记录 | 原关联 C-2~C-5 / T-25 / T-27；新增守护 `SchemaParityTest.sourceTypeDomainMatchesPolicy` |
+| ~~**G-18**~~ | ~~政策文档与 schema 的四处不一致~~ → ✅ **已修复（2026-10 修订）** | **原现状**：C-2（`data_source.remark` 不存在，实为 `note`）、C-3（C-02 查询不存在的 `nv.unit`）、C-4（C-04/C-05 查询不存在的 `kd.code`）、C-5（分级表使用的 `source_type` 取值超出 schema 注释域） | **原风险**：C-02 / C-04 / C-05 三条“来源可追溯率 100%”自检 SQL **跑不起来**（未知列）；分级映射与 `source_type` 实际取值错位会使门禁判据失去依据 | **已修**：①`remark` → `note`（14 处，另把指错表的引用改到真正存在的落点：`nutrition_value.source_detail` / `reference_note`、`admin_audit_log`）；②C-02 改为 `JOIN nutrient` 后校验 `n.unit`，并卡 `reference_amount > 0` 与“能量必须用 kcal/kJ”；③C-04/C-05 去掉 `kd.code`，改用 `kd.title`（引用标识是 `KDOC_<docId 左补零至 4 位>#chunk<chunkId>`，`chunkId` 是 `knowledge_chunk.id`；`knowledge_doc` 本就没有 `code` 列）；④`source_type` 取值域统一为 `OFFICIAL/DATABASE/GUIDELINE/LITERATURE/STANDARD/COMMERCIAL/OTHER/DEMO/CUSTOM`，**由 `ck_source_type` CHECK 在 MySQL 与 H2 两侧强制**，与 `data-source-policy.md` §1.3 逐字一致；⑤顺带修正 C-03 注释里写反的通过条件（“永不为空” → “永不返回行”）与 LG-04/N2 里把 `unit` 当 `nutrition_value` 列的错误落点。**遗留**：`COMMERCIAL`/`OTHER` 是否该进 schema 曾是开放问题，本次选择「按政策文档定域」而非「收敛政策」，已在 `data-source-policy.md` 记录 | 原关联 C-2~C-5 / T-25 / T-27；新增守护 `SchemaParityTest.sourceTypeDomainMatchesPolicy` |
 | **G-19** | 令牌方案两处描述不一致 | `README.md:38` 为“有状态令牌（令牌哈希落库、登出即删行）”；[`docs/DESIGN.md:338`](DESIGN.md) ADR-10 为“HMAC-SHA256 签名令牌”，且 A-01 仍列为待确认 | 决定 `TokenService` 是否需要每请求查库，影响登出语义、性能与限流实现位置 | 二选一并写入契约。**本文建议采用有状态**：`sys_auth_token` 的 `token_hash` UNIQUE + `expires_at` NOT NULL + `revoked_at` 已经是完整的有状态撤销模型，且与 README 一致；随后把 ADR-10 与 A-01 一并更新 | C-7 / A-01 / T-09 |
 | **G-20** | 交付物路径与状态列滞后 | `PRD.md` 实际位于 `nutrition_agent/docs/`（下划线目录），而交付物清单引用 `nutrition_agent/docs/PRD.md`、进度表把已存在的文档标为 ⬜（[`docs/ROADMAP.md:34-47`](ROADMAP.md)） | 里程碑验收时“交付物是否齐全”无法从 ROADMAP 直接判定（本次核对本文档即遇到此问题：任务给出的 `docs/PRD.md` 路径在本仓库不存在） | 统一 PRD 存放位置（建议移入 `nutrition-agent/docs/PRD.md`）并同步 ROADMAP 与 README 的链接；ROADMAP 状态列按文件事实回写 | C-6 / C-8 |
 
@@ -1306,7 +1318,7 @@ cd D:\ds_harness_work
 node .mmdval/schemacheck.mjs
 ```
 
-原样输出：
+原样输出（**2026-10 复核注记**：以下是成稿当时的原始输出，按“历史记录”保留、未改写。其间的 schema 变更已使其中两行过期——`admin_audit_log` 新增 `detail`（10 → 11 列）、`operation_log` 新增 `client_key` 与索引 `idx_oplog_client`（11 → 12 列）；2026-10 实测为 **21 张表 / 254 个列定义 / 22 条外键 / 2 个 CHECK 约束（`ck_source_type`、`ck_nv_status_amount`）**，故本段末的「245 个列名」亦已过期。第 4.20 / 4.21 节字段表已按现状补写，本文其余行号引用见 1.1 节末尾的说明）：
 
 ```text
 schema 表数=21  文档第4节表数=21
@@ -1347,11 +1359,11 @@ schemacheck exit=0
 | --- | --- |
 | 路径 | `D:\ds_harness_work\nutrition-agent\docs\er-diagram.md` |
 | 编码 | UTF-8 **无 BOM**（首字节非 `EF BB BF`）、LF 换行 |
-| 大小 | 104909 字节 |
-| 行数 | 1368 行（以 LF 计，文末保留一个换行） |
+| 大小 | 成稿时 104909 字节；**2026-10 复核后约 110 KB**（含本次修订，精确值得以落盘文件为准） |
+| 行数 | 成稿时 1368 行；**2026-10 复核后 1373 行**（以 LF 计，文末保留一个换行；随修订略有增减） |
 | 写入工具 | 直接写文件，未执行任何 `git` 命令 |
 
-> 行数/字节数以上表为落盘实测值；mermaid 块的行号区间见 9.1 节（8 个块均位于第 9 节之前，故补写本节不影响上述行号）。
+> 行数/字节数以上表为落盘实测值；mermaid 块的行号区间见 9.1 节（8 个块均位于第 9 节之前，故补写本节不影响上述行号）。**2026-10 复核**：上表“成稿时”一列为历史快照，本次修订（4.20 / 4.21 补列、data_source 枚举、若干行号与 `KDOC_` 格式）后取新值；9.1 节的 mermaid 块行号区间同样因行数增长而漂移，未逐块回填。
 
 ---
 

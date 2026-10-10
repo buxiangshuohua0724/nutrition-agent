@@ -9,6 +9,9 @@
 > **当前状态（修完之后的复核结果）**：
 > - 三个 P0 全部修复：分类/搜索从「恒空」改为从种子数据生成的真实列表；AI 回答的引用改为真实存在的
 >   `knowledge_doc.id=5` / `knowledge_chunk.id=14`；AI 问答不再渲染生 JSON（`entryText()` 统一取文本字段）。
+>   ⚠️ **一处未修完（2026-10 复核）**：`frontend/src/api/demo-data.js:194` 的引用串仍是
+>   `KDOC_0005#chunk1`——按实现 `#` 后必须是 `knowledge_chunk.id`（=14），`1` 是该块的 `chunk_index`，
+>   解析出来会落到 `chunk.id=1`（属 `doc_id=1`），即**引用仍然指错记录**。详见下方「约束 3」末的修订补记。
 > - 食品详情页补上 FR-003 要求的「数据来源」「数据更新时间」两行。
 > - 「红色报错浮层 + 黄色演示横幅」同时出现的问题：所有有演示兜底的调用点都传了 `{ silent: true }`。
 > - 演示事实数据改为由 `scripts/gen_demo_dataset.py` 从 `backend/src/main/resources/db/h2/data.sql`
@@ -191,7 +194,7 @@ $env:CDP_PORT='9222'; $env:BASE_URL='http://127.0.0.1:5173'
      { "text": "一般人群可作为日常蔬菜摄入，注意总量平衡", "scope": "一般人群", "basis": "膳食指南一般性原则" }
      ```
      根因：`frontend/src/views/ChatView.vue:279` 与 `:287` 用 `{{ item }}` 插值**整个对象**（对象结构见 `frontend/src/api/demo-data.js:417` 与 `:419`）。应改成 `{{ item.text }}`。
-  2. **「参考来源」引用了不存在的知识文档 → 违反硬约束 3**。见下方「硬约束 3」。界面上显示「演示数据集 STRUCTURED_DATA」「膳食纤维的作用 KNOWLEDGE」，其中 `KDOC_0007#chunk2` **在种子库里查无此条**。
+  2. **「参考来源」引用了不存在的知识文档 → 违反硬约束 3**。见下方「硬约束 3」。界面上显示「演示数据集 STRUCTURED_DATA」「膳食纤维的作用 KNOWLEDGE」，其中 `KDOC_0007#chunk2` **在种子库里查无此条**。（**2026-10 修订**：该缺陷后续已修，`demo-data.js` 里不再有 `KDOC_0007`，改为指向真实存在的 `doc 5` / `chunk 14`；修复后的准确状态与其中一处遗留见「约束 3」末的补记。）
   3. 回答正文未渲染 `nutritionFacts` 区块：正文说「具体数值见下方『营养事实』」，但截图中没有该区块（`demo-data.js:396-415` 定义了热量 15 kcal 等）。
   4. 缺少 `清空` 之外的历史对话入口（FR-005 要求「查看历史对话」，见第 12 项）。
 - 多出（合理增强）：`新建对话`、`不确定性提示` 告示块、顶部 `演示数据` 告示条（「不是真实的 AI 回答，不能作为营养依据」——这句很正确）。
@@ -339,6 +342,54 @@ sources: [
 
 ---
 
+### 2026-10 修订：约束 3 的后续状态（本节以上为 2026-10-10 那次验证的原始记录，不改写）
+
+**已修复的部分**——`frontend/src/api/demo-data.js` 现在写的是：
+
+```js
+// :186-197
+sources: [
+  { type: 'STRUCTURED_DATA', title: '演示数据集', refId: 'DEMO_DATASET', url: null },
+  { type: 'KNOWLEDGE', title: '营养数据常见问题：缺失值、零值与参考重量', refId: 'KDOC_0005#chunk1', url: null },
+]
+```
+
+- 编造标题「膳食纤维的作用」已从演示数据中消失；`DEMO_KNOWLEDGE`（`:297-313`）现为
+  `docId: 5, chunkId: 14, title: '营养数据常见问题：缺失值、零值与参考重量', heading: '零值与缺失值的区别'`，
+  三项都与 `backend/src/main/resources/db/h2/data.sql:698`（doc 5）与 `:718`（`chunk.id=14, doc_id=5, chunk_index=1`）对得上。
+- 因此本节的结论「指向一个被编造出来的知识文档」**对当前代码已不成立**，但它对 `KDOC_0007#chunk2` 这个字符串成立，
+  原文保留。
+
+**仍未修完的部分（本次只报告，未修改）**——`sources[].refId` 里的 chunk 编号取错了列：
+
+- `demo-data.js:194` 写 `KDOC_0005#chunk1`。`1` 是这一块在 doc 5 内的 `chunk_index`，而按实现
+  （`backend/src/main/java/com/nutritionagent/agent/tool/AgentToolkit.java:144`：
+  `"KDOC_" + pad(hit.docId()) + "#chunk" + hit.chunkId()`）`#` 后必须是 `knowledge_chunk.id`。
+  把 `KDOC_0005#chunk1` 解析回去会命中 `chunk.id=1`，而 `chunk.id=1` 的 `doc_id` 是 **1**（`data.sql:705`），
+  **不是 5**——引用与文档对不上，FR-011 的「来源必须真实」在"字符串可解析但指向错记录"这一层仍未满足。
+- 正确值应为 **`KDOC_0005#chunk14`**。注意 `demo-data.js:299-301` 的注释自己写的就是
+  「knowledge_chunk.id = 14」，即实现与注释互相矛盾。
+- `frontend/src/**` 不在本次文档修订的可改范围内，故**只报告、未修改**。这条也已写进本文档开头的
+  「历史快照说明」。
+- 另外，本文档开头称演示数据已改由 `scripts/gen_demo_dataset.py` 从 `data.sql` 生成到
+  `frontend/src/api/demo-dataset.js` 并受 `scripts/check_contract.py` 守护；上面的 `refId` 缺陷说明
+  该守护**没有覆盖 `sources[].refId` 的构造规则**，建议把「`refId` 必须能反查回同一 doc 的 chunk」
+  也纳入守护（属建议，未实施）。
+- **行号漂移提示**：本节正文引用的 `data.sql` 行号是 2026-10-10 时的版本，之后该文件增长过，按下表换算
+  才能查到原文：
+
+  | 正文行号 | 当前行号 | 内容 |
+  | --- | --- | --- |
+  | `data.sql:50-55` | `data.sql:56-61` | `data_source` 5 条登记来源 |
+  | `data.sql:687-693` | `data.sql:693-699` | `INSERT INTO knowledge_doc`（id 1–6） |
+  | `data.sql:698-716` | `data.sql:704-722` | `INSERT INTO knowledge_chunk`（id 1–18） |
+  | `data.sql:701` | `data.sql:707` | chunk `id=3, doc_id=1, chunk_index=2` |
+  | `data.sql:711-713` | `data.sql:717-719` | chunk `id=13/14/15`（doc 5） |
+  | `data.sql:716` | `data.sql:722` | chunk `id=18`「关于本演示数据集的说明」 |
+  | `data.sql:785` | `data.sql:791` | `ALTER TABLE knowledge_doc ... RESTART WITH 7` |
+
+---
+
 ## 建议修复清单
 
 > **本清单仅为建议。我没有修改 `frontend/src` 或 `backend/src` 下的任何文件。**
@@ -351,9 +402,14 @@ sources: [
    - 对象结构见 `frontend/src/api/demo-data.js:417`（`{text, scope, basis}`）与 `:419`（`{level, text}`）。证据 `ui-shots/05b-chat-answer.png`。
 
 2. **修复伪造的引用来源（硬约束 3）** —— `frontend/src/api/demo-data.js`
-   - `:420-423` 的 `refId: 'KDOC_0007#chunk2'` 改为 `KDOC_0001#chunk2`（对应 `data.sql:701` chunk id 3、doc 1、chunk_index 2「碳水化合物与膳食纤维」）；
-   - `:484-500` 的 `DEMO_KNOWLEDGE` 改为 `docId: 1, chunkId: 3, title: '碳水化合物与膳食纤维'`（或改用 `docId: 5, chunkId: 13`，标题「为什么会出现『暂无数据』」）。
-   - 依据：`data.sql:687-693`（doc 只有 1–6）、`data.sql:785`（`RESTART WITH 7`）、`data.sql:698-716`（chunk 只有 1–18，`chunk_index` 从 0 开始）。
+   - `:420-423` 的 `refId: 'KDOC_0007#chunk2'` 改为 `KDOC_0001#chunk3`（对应 `data.sql:707` chunk id 3、doc 1、chunk_index 2「碳水化合物与膳食纤维」）；
+   - `:484-500` 的 `DEMO_KNOWLEDGE` 改为 `docId: 1, chunkId: 3, title: '碳水化合物与膳食纤维'`（或改用 `docId: 5, chunkId: 14`，标题「零值与缺失值的区别」）。
+   - 依据：`data.sql:693-699`（doc 只有 1–6）、`data.sql:785`（`RESTART WITH 7`）、`data.sql:704-722`（chunk 只有 1–18，`chunk_index` 从 0 开始）。
+   - **2026-10 修订**：本条建议原先写的是 `KDOC_0001#chunk2`，**这个建议本身是错的**——`#` 后必须是
+     `knowledge_chunk.id`（=3），`2` 只是 `chunk_index`（同样落回 `chunk.id=2`，属 `doc_id=1` 的第 2 块，
+     与「碳水化合物与膳食纤维」不是同一块）。已更正为 `KDOC_0001#chunk3`。实际修复时选的是
+     `docId: 5 / chunkId: 14` 那条路线，但 `refId` 仍沿用了 `chunk_index`（`KDOC_0005#chunk1`），
+     见「约束 3」末的修订补记。
 
 3. **修复搜索页恒为空 + 误导文案** —— `frontend/src/api/foods.js:78-81`
    - `searchFoods` 的 `withEmptyPageFallback(...)` 改为带回退数据的 `withDemo(...)`，按 `keyword` 过滤 `DEMO_FOODS`；

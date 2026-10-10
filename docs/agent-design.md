@@ -418,40 +418,47 @@ backend/src/main/java/com/nutritionagent/agent/
   "query": "膳食纤维 作用",
   "hits": [
     {
-      "chunkRef": "KDOC_0007#chunk2",
-      "docId": 7,
-      "chunkId": 23,
+      "chunkRef": "KDOC_0001#chunk3",
+      "docId": 1,
+      "chunkId": 3,
       "chunkIndex": 2,
-      "title": "膳食纤维的作用",
-      "heading": "可溶性纤维",
+      "title": "营养素基础知识：六大类营养素与能量",
+      "heading": "碳水化合物与膳食纤维",
       "category": "NUTRIENT",
-      "snippet": "可溶性膳食纤维可被肠道菌群发酵…",
-      "keywords": "膳食纤维 可溶性 肠道",
+      "snippet": "碳水化合物是膳食中最主要、最经济的能量来源，主要包括淀粉和各类糖。全谷物、杂豆和薯类除了提供碳水化合物外，还能提供一定量的膳食纤维。",
+      "keywords": "碳水化合物 淀粉 膳食纤维 全谷物",
       "score": 3.2,
       "applicableScope": "成人一般人群",
       "source": {
-        "id": 5,
-        "code": "CN_DIETARY_GUIDELINE_2022",
-        "name": "《中国居民膳食指南（2022）》",
-        "publisher": "中国营养学会",
-        "version": "2022",
-        "publishDate": "2022-04-26",
+        "id": 2,
+        "code": "CFCT-6",
+        "name": "《中国食物成分表》第6版",
+        "publisher": "北京大学医学出版社",
+        "version": "第6版",
+        "publishDate": "2018-01-01",
         "url": null,
-        "applicableScope": "中国居民一般人群"
+        "applicableScope": "成人一般人群（演示占位）"
       },
-      "validUntil": null
+      "validUntil": "2028-01-01T00:00:00"
     }
   ],
   "miss": false,
   "sources": [
-    { "type": "KNOWLEDGE", "title": "膳食纤维的作用", "refId": "KDOC_0007#chunk2", "url": null }
+    { "type": "KNOWLEDGE", "title": "营养素基础知识：六大类营养素与能量", "refId": "KDOC_0001#chunk3", "url": null }
   ]
 }
 ```
 
-> **`chunkRef` 是引用回填的唯一凭据**，格式 `KDOC_<docId 四位补零>#chunk<chunkIndex>`，与
-> `docs/api-contract.md:284` 的示例 `"KDOC_0007#chunk2"` 完全一致。最终回答中的每条知识型 `sources`
+> **`chunkRef` 是引用回填的唯一凭据**，格式 `KDOC_<docId 四位补零>#chunk<chunkId>`：`chunkId` 是
+> `knowledge_chunk.id`（**全局自增主键，不是 `chunk_index`**，见 `backend/src/main/java/com/nutritionagent/agent/tool/AgentToolkit.java:144`），
+> 与 `docs/api-contract.md` 3.5 的示例 `"KDOC_0001#chunk3"` 完全一致。最终回答中的每条知识型 `sources`
 > 都必须能在此**本轮**返回的 `hits[].chunkRef` 里找到（由 `FactValidator` FV-05 校验）。
+>
+> **2026-10 修订**：本例原先写作 `KDOC_0007#chunk2`、`docId: 7`、`chunkId: 23`、标题「膳食纤维的作用」，
+> 这些**在种子库中都不存在**（种子库只有 6 篇知识文档 `id 1~6`、18 个 chunk `id 1~18`，见 `backend/src/main/resources/db/h2/data.sql:693-722`），
+> 是把 `chunk_index` 当成了 `#` 后的编号、并连标题一起编造。现已替换为真实记录：`h2/data.sql:707` 的
+> `knowledge_chunk (id=3, doc_id=1, chunk_index=2)`，其文档为 `h2/data.sql:694` 的
+> 「营养素基础知识：六大类营养素与能量」（`source_id=2` → `h2/data.sql:58` 的 `CFCT-6`）。
 >
 > **无命中时**：`hits: []` + `miss: true`，**不得**用模型记忆补一条"参考指南"。
 
@@ -1148,7 +1155,7 @@ flowchart TD
 | 编号 | 问题 | 位置 | 影响 | 建议 |
 | --- | --- | --- | --- | --- |
 | **T-11** | **`chat_message.intent` 的取值域无契约定义。** schema 只写 `intent VARCHAR(32)` 并注释"识别出的意图"，API 契约只在示例中出现过一个值 `"NUTRITION_VALUE"`。 | `docs/db/schema.sql:427`；`docs/api-contract.md:261` | 本文档第 3 节定义了 12 个枚举值（10 类 + `OUT_OF_SCOPE`/`HIGH_RISK_HEALTH`/`UNKNOWN`），但**属本文档单方定义**。若不回写契约，前端与统计脚本无法可靠消费 | 把 `intent` 枚举提升为**契约级枚举**，写入 `docs/api-contract.md`（`AgentAnswer.intent` 字段说明）；或明确 `intent` 为内部字段、不对外承诺稳定性 |
-| **T-12** | **`searchNutritionKnowledge` 的 `chunkRef` 命名格式未在任何契约中定义。** 只有 `docs/api-contract.md:284` 的一个示例字符串 `"KDOC_0007#chunk2"`。 | `docs/api-contract.md:284` | 本文档据此固化为 `KDOC_<docId 四位补零>#chunk<chunkIndex>`，作为 FV-11 的比对依据。若非正式约定，校验将失效 | 在契约 3.5 或 4.4 中显式写明 `refId` 的构造规则 |
+| ~~**T-12**~~ | ~~**`searchNutritionKnowledge` 的 `chunkRef` 命名格式未在任何契约中定义。** 只有 `docs/api-contract.md:284` 的一个示例字符串 `"KDOC_0007#chunk2"`。~~ | ✅ **已关闭（2026-10 修订）** | 原影响：本文档据此固化格式作为 FV-11 的比对依据，若非正式约定则校验失效；且原示例 `KDOC_0007#chunk2` 在种子库中查无此条 | **已解决**：`docs/api-contract.md` 3.5 已用注记显式写明 `refId` 的构造规则（`KDOC_<docId 左补零至 4 位>#chunk<chunkId>`，`chunkId` = `knowledge_chunk.id`），示例改为种子库真实存在的 `KDOC_0001#chunk3`；本文档 2.6 与 `docs/data-source-policy.md` 3.5 已同步（与 T-26 为同一问题的两面，一并关闭） |
 | **T-13** | **`AgentAnswer` 缺少 `answer` 与 `nutritionFacts` 的对应机制。** 契约未说明模型如何"引用"工具数值（本文档 H2 采用 `factRefs` 索引方案）。 | `docs/api-contract.md:256-301` | H2 的"数值由工具层回填"需要模型输出**引用索引**，但契约中无此字段。若不加，只能退化为"事后文本比对"（FV-01 已实现，但更脆弱） | 在内部实现中引入 `factRefs`（**不对外暴露**，不属于 API 契约），或接受 FV-01 的文本级比对作为唯一手段 |
 | **T-14** | **`AgentAnswer` 无 `degradedReason` 字段。** 契约有 `degraded: boolean` 但无法说明降级原因。 | `docs/api-contract.md:294` | 第 7 节矩阵中「知识库无内容」为"部分降级"、模型超时为"完全降级"，两者都置 `degraded=true`，前端无法区分提示措辞 | 建议在 `AgentAnswer` 增加 `degradedReason: string?`，或复用 `uncertainty[].code` 承担该语义（**本文档按后者设计**，不改契约） |
 | **T-15** | **`getUserPreferences` 无对应 REST 接口。** 契约的接口清单中没有暴露用户偏好读取的公开端点，`GET /users/me` 是登录用户的完整资料接口。 | `docs/api-contract.md:431` | 该工具是 **Agent 内部工具**（由 `UserPrefTool` 直接查 `user_profile`），不是对外 API。这一点契约未明确，容易被误实现为"Agent 反向调用 HTTP 接口"（会造成鉴权上下文丢失） | 在契约或 DESIGN 中明确：Agent 工具调用业务 Service 层，**不经 HTTP 自调用** |

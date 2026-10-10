@@ -268,7 +268,7 @@ PRD 5.9 要求知识库可管理、检索、引用来源。`knowledge_doc` 提�
 | K3 | **指南与文献类知识必须设置 `valid_until`** | `knowledge_doc.valid_until` | 建议：`GUIDELINE` 类 3 年、`LITERATURE` 类 5 年；到期后**自动退出检索**（依据 `docs/api-contract.md` 知识检索条款：排除已过期文档） |
 | K4 | 分块必须保留**适用条件** | `knowledge_chunk.content` | 原文中的限定语（"部分研究显示""在成人中""长期过量摄入时"）**不得**在分块时删除。删除限定语等于制造错误结论 |
 | K5 | `applicable_scope` 必须在 chunk 或 doc 层级可判定 | `data_source.applicable_scope` + `knowledge_chunk.content` | Agent 引用时按此过滤（`docs/agent-design.md` FV-12） |
-| K6 | 每 chunk 必须可唯一定位 | `doc_id` + `chunk_index` | 引用标识 `chunkRef`，见 3.5 |
+| K6 | 每 chunk 必须可唯一定位 | `uk_chunk_doc_index`（`doc_id` + `chunk_index`）+ `knowledge_chunk.id` | 库内唯一性靠 `(doc_id, chunk_index)`；对外引用标识 `chunkRef` 用的是 `knowledge_chunk.id`，见 3.5 |
 | K7 | 知识内容**不得**包含个体化医疗建议 | `knowledge_chunk.content` | 与 `docs/agent-design.md` 第 8 节高风险处理一致 |
 
 ### 3.5 `chunkRef` 引用标识规范
@@ -276,7 +276,7 @@ PRD 5.9 要求知识库可管理、检索、引用来源。`knowledge_doc` 提�
 知识型 `sources[].refId` 的格式统一定义为：
 
 ```
-KDOC_<docId，至少 4 位，左补零>#chunk<chunkIndex>
+KDOC_<docId，至少 4 位，左补零>#chunk<chunkId>
 ```
 
 | 项 | 规则 |
@@ -284,12 +284,19 @@ KDOC_<docId，至少 4 位，左补零>#chunk<chunkIndex>
 | 前缀 | 固定 `KDOC_` |
 | `docId` | `knowledge_doc.id`，左补零至 4 位（超出 4 位按实际位数，不截断） |
 | 分隔符 | `#` |
-| 分块 | 固定 `chunk` + `knowledge_chunk.chunk_index` |
-| 示例 | `KDOC_0007#chunk2` |
+| 分块 | 固定 `chunk` + `knowledge_chunk.id`（该表**全局自增主键**，**不是** `chunk_index`） |
+| 示例 | `KDOC_0001#chunk3` —— 种子库中该 chunk 的 `id=3`、`doc_id=1`、`chunk_index=2`（`h2/data.sql:707`） |
 
-> 该格式与 `docs/api-contract.md` 中出现的示例 `"KDOC_0007#chunk2"` **逐字一致**。
+> 该格式与 `docs/api-contract.md` 3.5 节 `sources` 下的示例 `"KDOC_0001#chunk3"` **逐字一致**。
 > `docs/agent-design.md` 的 FV-11 规则用它校验"知识型来源必须能定位到本轮真实检索到的 chunk"。
-> ⚠️ 该格式目前**只在契约的示例字符串中出现，未作为正式约定写明**，已记入 `⚠️ 待确认` T-26。
+> 构造规则现已由 `docs/api-contract.md` 3.5 的注记写明（"`chunkId` 是 `knowledge_chunk.id`，左补零至 4 位"），
+> 不再是"只出现在示例里"的约定（原 T-26 / T-12 因此关闭）。
+>
+> **2026-10 修订**：本文档 3.5 原先写作 `#chunk<chunkIndex>`，示例为 `KDOC_0007#chunk2`。后者**在种子库中
+> 查无此条**——种子库只有 6 篇知识文档、18 个 chunk，不存在 `doc_id=7` 或 `chunk.id=23`。经实现
+> `backend/src/main/java/com/nutritionagent/agent/tool/AgentToolkit.java:144` 的
+> `"KDOC_" + pad(hit.docId()) + "#chunk" + hit.chunkId()` 与 `AgentToolkit.java:288-290` 的
+> `String.format("%04d", id)` 确认，`#` 后接的是 `knowledge_chunk.id`，现按实现更正。
 
 ---
 
@@ -450,7 +457,7 @@ WHERE (nv.value_status = 'MISSING' AND nv.amount IS NOT NULL)
 
 ```sql
 -- 已发布知识文档引用了不合规来源或缺少复核期限
--- 注意：knowledge_doc 没有 code 列，文档标识即 id + title（引用标识 KDOC_<id>#chunk<n>）
+-- 注意：knowledge_doc 没有 code 列，文档标识即 id + title（引用标识 KDOC_<docId 左补零至 4 位>#chunk<chunkId>）
 SELECT kd.id, kd.title, kd.category, ds.source_type, kd.valid_until
 FROM knowledge_doc kd
 LEFT JOIN data_source ds ON ds.id = kd.source_id
@@ -526,7 +533,7 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | 4 | 该条数值是谁录入、谁审核、何时？ | `created_by` / `reviewed_by` / `reviewed_at` |
 | 5 | 若来源资料口径与库内不同，换算过程在哪？ | `nutrition_value.source_detail` / `reference_note` 或 `admin_audit_log.before_json/after_json` |
 | 6 | AI 回答引用的来源，是否真实存在？ | `docs/agent-design.md` FV-05S / FV-11 校验 + `chunkRef` 规则（3.5） |
-| 7 | 知识结论能否定位到具体 chunk？ | `KDOC_<docId>#chunk<chunkIndex>` |
+| 7 | 知识结论能否定位到具体 chunk？ | `KDOC_<docId 左补零至 4 位>#chunk<chunkId>`（`chunkId` = `knowledge_chunk.id`） |
 | 8 | 图片能否说明授权来源？ | C-06 + `license_note` |
 | 9 | 已过期的指南/文献是否已退出检索？ | C-05 + LG-12 |
 | 10 | 演示数据是否被误当正式数据发布？ | C-01 的 `source_type IN ('DEMO','CUSTOM')` 条件 |
@@ -655,7 +662,7 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | S8 | 缺 `unit` / `reference_amount` 被拒 | 接口测试（期望 `40001`） | 稳定返回 `40001` |
 | S9 | `MISSING` + 非空 `amount` 被库拒绝 | 直接 SQL 插入测试 | 数据库抛 CHECK 约束错误 |
 | S10 | 审核人与录入人相同的发布被拒 | 接口测试 | 稳定拒绝（LG-08） |
-| S11 | 知识引用可定位 | 取一条 AI 回答，按其 `sources[].refId` 反查 `knowledge_chunk` | 必能命中 `(doc_id, chunk_index)` |
+| S11 | 知识引用可定位 | 取一条 AI 回答，按其 `sources[].refId` 反查 `knowledge_chunk` | 必能命中 `knowledge_chunk.id`（该行的 `doc_id` 与 refId 中的 `docId` 一致） |
 | S12 | 种子数据可识别 | 查 `data_source` 中 `source_type='DEMO'` | 存在且 `name` 含醒目标识 |
 
 ---
@@ -670,7 +677,7 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | **T-23** | **`food` 表缺少逐字段的来源落点。** 食品的 `intro` / `common_usage` / `origin` / `storage_method` / `suitable_for` / `cautions`（PRD 5.8）在 schema 中只有 `created_by` / `updated_by` 作为溯源手段，**没有 `source_id`**。而 `nutrition_value`、`food_image`、`knowledge_doc` **都有** `source_id`。 | `docs/db/schema.sql` 的 `food` 表定义 | PRD 12.1「来源可追溯率 100%」在食品文案类字段上**无法自动校验**。`suitable_for` 与 `cautions` 是风险最高的字段（最易写成医学建议），却恰恰没有结构化来源 | 建议为 `food` 增加 `source_id`（或对 `suitable_for` / `cautions` 单独增加来源字段）；在补字段前，本文档要求这两个字段的内容若引用知识库，须在审计日志中记录引用的 `knowledge_doc.id` |
 | ~~**T-24**~~ | ~~**来源分级的颗粒度与发布门禁冲突。**~~ | ✅ **已关闭（2026-10 决策，落点 D9）** | 原影响：过渡期存在"演示数值随已发布食品一起对外可见"的风险，直接违反 `README.md` 的演示数据禁令。C-01 只能**发现**，不能**阻止** | **已在 7.1 新增 D9/D10 与 7.2 写明**：开发期种子数据（23 个食品全部 PUBLISHED、营养行 100% 来自 `DEMO-SEED`）**整批豁免** D7，状态不改；"C-01 非 0 行"在开发期是预期状态。豁免边界：只适用 `h2/data.sql` 这份开发种子、上线前 D8 仍须归零（**替换**而非并存）、新增演示数据仍受 D7 约束。技术层面的颗粒度限制**依然存在**（`nutrition_value` 没有行级发布状态），中长期建议不变：为行级可见性引入 `is_publishable` 或在发布时物化快照 |
 | **T-25** | **来源分级（A/B/C）不是 schema 中的列。** `data_source` 只有 `source_type`，没有 `source_tier`。 | `docs/db/schema.sql` 的 `data_source` 表 | 本文档第 1.3 节的分级是**对 `source_type` 的业务解释**，不是可直接查询的事实。LG-02（只能引用 A 级）无法用一条简单 SQL 表达，必须硬编码 `source_type` 白名单，未来扩展 `source_type` 时容易漏改 | 建议增加 `source_tier`（`A`/`B`/`C`）列，或把白名单集中到一个可配置常量类中并加单测。**本文档按"白名单硬编码 + C-01 校验"设计**，不改 schema |
-| **T-26** | **`chunkRef` 格式未作为正式约定写明。** 只在 `docs/api-contract.md` 的 `sources[].refId` 示例中出现过 `"KDOC_0007#chunk2"` 一个字符串。 | `docs/api-contract.md`（`sources` 字段示例） | 本文档 3.5 将其固化为 `KDOC_<docId 四位补零>#chunk<chunkIndex>`，作为"知识引用可定位"的校验依据。若非正式约定，S11 自检与 `docs/agent-design.md` FV-11 都会失效 | 在契约的 `sources` 或知识检索条款中显式写明 `refId` 构造规则（与 T-12 为同一问题的两面） |
+| ~~**T-26**~~ | ~~**`chunkRef` 格式未作为正式约定写明。** 只在 `docs/api-contract.md` 的 `sources[].refId` 示例中出现过 `"KDOC_0007#chunk2"` 一个字符串。~~ | ✅ **已关闭（2026-10 修订）** | 原影响：若非正式约定，S11 自检与 `docs/agent-design.md` FV-11 都会失效；且原示例 `KDOC_0007#chunk2` 在种子库中**查无此条** | **已解决**：`docs/api-contract.md` 3.5 已用注记写明 `refId` 的构造规则（`KDOC_<docId 左补零至 4 位>#chunk<chunkId>`，`chunkId` = `knowledge_chunk.id`），示例换成种子库真实存在的 `KDOC_0001#chunk3`；本文档 3.5 同步更正为同一格式。两者现**逐字一致**（与 T-12 为同一问题的两面，一并关闭） |
 | ~~**T-27**~~ | ~~**`data_source.source_type` 的完整取值域未在契约中列出。**~~ | ✅ **已关闭（2026-10 修订）** | 原影响：若实际枚举少于本文档所列，1.3 的映射需收敛 | **已解决**：`source_type` 的取值域现已由 `ck_source_type` CHECK 在 **MySQL 与 H2 两份 schema 上同时强制**，取值为 `OFFICIAL`/`DATABASE`/`GUIDELINE`/`LITERATURE`/`STANDARD`/`COMMERCIAL`/`OTHER`/`DEMO`/`CUSTOM`，与本文档 1.3 分级表**逐字一致**；该不变量由 `SchemaParityTest.sourceTypeDomainMatchesPolicy` 卡住（任一处漂移即红）。**遗留**：把该枚举同步到 `docs/api-contract.md` 的后台数据源管理接口，仍未做 |
 | **T-28** | **后台营养数据接口是否返回 `source_type` / 来源级别未约定。** | `docs/api-contract.md` 后台营养数据更新接口 | 本文档 7.3 要求后台界面能一眼区分"演示数据"，但若接口不返回 `source_type`，前端无法展示红色警示标签 | 建议后台查询接口返回 `source` 对象（含 `code`、`name`、`source_type`、`version`）；前台公开接口是否返回来源由 PRD 11.1 决定 |
 | **T-29** | ~~**`data_source.code` 的唯一性约束需确认。**~~ | ✅ **已核实（2026-10 修订）** | 本文档 2.1 要求"`code` 稳定唯一、一经使用不得改名"，并以 `DEMO-SEED`、`CN-DIETARY-GUIDE-2022` 等作为稳定引用键 | **已确认存在**：两份 schema 都有 `uk_source_code (code)`，`code` 另有 `NOT NULL`。该键**不含** `deleted_at`，因为 `data_source` 没有逻辑删除列（来源不允许被删除，只能停用），故此表不受 `[D8]` 影响 |

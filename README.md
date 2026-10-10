@@ -92,8 +92,31 @@ nutrition-agent/
 ```bash
 cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
-# 接口文档 http://localhost:8080/swagger-ui.html
+# 服务地址 http://localhost:8080
 ```
+
+> dev profile 启动时会用 `backend/src/main/resources/db/h2/schema.sql` + `data.sql`
+> 建一个**内存** H2 库并灌入 23 条演示食品。它是内存库：**每次重启都回到种子状态**，
+> 因此后台操作产生的数据（审计日志、上传的图片等）不会留到下次启动。
+>
+> 没有 Swagger/OpenAPI 页面：本项目曾引入 springdoc，但它与当前 Spring Boot 版本
+> 不兼容，已移除。接口契约以 [`docs/api-contract.md`](docs/api-contract.md) 为准。
+
+### 演示账号（dev/demo 种子数据）
+
+三个账号的密码**都是 `demo1234`**（由 `BCryptPasswordEncoder().encode("demo1234")` 生成）：
+
+| 用户名 | 密码 | 角色 | 用途 |
+| --- | --- | --- | --- |
+| `admin` | `demo1234` | `SYS_ADMIN` + `CONTENT_ADMIN` + `USER` | 系统管理（含用户/设置）、内容管理 |
+| `content` | `demo1234` | `CONTENT_ADMIN` + `USER` | 内容管理，无系统管理权限 |
+| `demo` | `demo1234` | `USER` | 普通用户视角（收藏、历史、问答） |
+
+> 这是**演示用弱口令**，公开接口下可直接登录后台，上线前必须重建账号或改为
+> 环境变量注入。约束由 `backend/src/test/java/com/nutritionagent/SeedContractTest.java`
+> 的 `seededPasswordMatchesDocumentedPlaintext` 守住：它要求种子里的散列必须能被
+> 上面这个口令匹配——**曾经种子里放的是一个谁也登不进去的散列**（明文未知），
+> 编译、单测、前端构建全都照常通过，只有真的去调登录接口才会暴露。
 
 ### 后端（MySQL）
 
@@ -113,8 +136,10 @@ npm run dev
 # http://localhost:5173
 ```
 
-前端默认走 **mock 数据**（`VITE_USE_MOCK=true`），接口先行、前后端可并行开发。
-要连真实后端，把 `frontend/.env.development` 里的 `VITE_USE_MOCK` 改为 `false`。
+前端**默认永远请求真实接口**，没有 mock 开关（`frontend/.env.example` 里有说明）。
+只有在 `import.meta.env.DEV` 且接口请求失败（后端没启动 / 网络不通）时，才会回退到
+`frontend/src/api/` 下的本地演示数据，且页面会显著标示「演示数据」；生产构建
+（`DEV=false`）下这个兜底完全不生效，接口失败就是失败。
 
 ---
 

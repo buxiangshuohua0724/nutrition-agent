@@ -161,13 +161,13 @@
 
 ```json
 {
-  "variantId": 21,
-  "foodId": 12,
+  "variantId": 1,
+  "foodId": 1,
   "foodName": "西红柿",
-  "variantLabel": "生（可食部）",
+  "variantLabel": "生",
   "referenceAmount": 100,
   "referenceUnit": "g",
-  "referenceNote": "每 100g 可食部",
+  "referenceNote": "每100g可食部",
   "rows": [
     {
       "nutrientId": 1,
@@ -178,21 +178,21 @@
       "valueStatus": "PRESENT",
       "unit": "kcal",
       "amount": 15,
-      "displayText": "15 kcal",
+      "displayText": "15",
       "source": {
         "id": 1,
-        "name": "演示数据集（不可用于对外发布）",
-        "code": "DEMO_DATASET",
+        "name": "《AI 食品营养师演示数据集（非真实来源）》",
+        "code": "DEMO-SEED",
         "sourceType": "DEMO",
-        "applicableScope": "仅用于流程验证"
+        "applicableScope": "成人一般人群（演示占位）"
       }
     },
     {
-      "nutrientId": 9,
-      "nutrientCode": "VITAMIN_A",
-      "nutrientName": "维生素A",
+      "nutrientId": 10,
+      "nutrientCode": "VITAMIN_D",
+      "nutrientName": "维生素D",
       "groupCode": "VITAMIN",
-      "displayOrder": 20,
+      "displayOrder": 12,
       "valueStatus": "MISSING",
       "unit": "ug",
       "amount": null,
@@ -200,50 +200,71 @@
       "source": null
     }
   ],
-  "incomplete": true,
-  "missingCount": 1,
-  "dataUpdatedAt": "2026-10-10T12:00:00"
+  "dataUpdatedAt": "2025-01-01 00:00:00"
 }
 ```
+
+> **`rows` 一定覆盖全部启用营养素**（种子库为 14 项）。字典里存在、但该形态一条记录都没有的营养素，
+> 后端会显式补成 `valueStatus: "MISSING"` 的行（实现见 `NutritionQueryService.fillAbsentNutrients`）。
+> 少了整行会让界面看起来像「这个食品没有这项营养素」，而事实是「数据没录」——两者含义完全不同。
+>
+> **`dataUpdatedAt` 是营养数值的更新时间**，取自该形态下 `nutrition_value.updated_at` 的最大值，
+> **不是** `FoodDetail.dataUpdatedAt`（那是食品档案的更新时间，与营养数值是两条独立的编辑链路：
+> 管理员今天改了热量，食品档案的 `updated_at` 不会动）。格式统一为 `yyyy-MM-dd HH:mm:ss`。
+>
+> 顶层**没有** `incomplete` / `missingCount` 两个字段：契约 3.5 才有 `missingCount`。营养表这边
+> 由前端按 `rows` 里 `MISSING` 的条数自行统计（`frontend/src/components/NutritionTable.vue`），
+> 接口不重复给一份可能与 `rows` 不一致的数字——两份真相迟早会打架。
 
 > **`valueStatus` 三态语义（必须严格遵守）**
 >
 > | valueStatus | amount | displayText | 含义 |
 > | --- | --- | --- | --- |
-> | `PRESENT` | 数值 | `"15 kcal"` | 已知且非零 |
-> | `ZERO` | `0` | `"0 g"` | **已知为零**（如脂肪含量标为 0） |
+> | `PRESENT` | 数值 | `"15"` | 已知且非零 |
+> | `ZERO` | `0` | `"0"` | **已知为零**（如脂肪含量标为 0） |
 > | `MISSING` | `null` | `"暂无数据"` | **尚未录入/不可核实**，绝不能参与求和 |
 >
-> `incomplete` 为 `true` 时，前端必须显示"数据不完整"提示；后端在汇总计算中跳过 `MISSING` 行并回传 `missingCount`。
+> `displayText` 只带数值本身，**单位在 `unit` 字段里**，由前端拼接（`"15" + " " + "kcal"`）。
+> 接口不返回 `"15 kcal"` 这种拼好的字符串：数值与单位分开，前端换算或换单位时才不会去解析字符串。
+>
+> 汇总计算（`POST /nutrition/calculate`）跳过 `MISSING` 行，并把它们的**中文名**放进
+> `missingNutrients`（契约 3.4）——前端拿到就能直接显示，不必再翻一次字典。
 
 ### 3.4 `NutritionCalculation` — 按重量计算结果
 
 ```json
 {
-  "foodId": 12,
+  "foodId": 1,
   "foodName": "西红柿",
-  "variantId": 21,
-  "variantLabel": "生（可食部）",
-  "inputWeight": 150,
+  "variantId": 1,
+  "variantLabel": "生",
+  "inputWeight": 200,
   "inputUnit": "g",
   "referenceAmount": 100,
   "referenceUnit": "g",
   "items": [
     {
+      "nutrientId": 2,
       "nutrientCode": "PROTEIN",
       "nutrientName": "蛋白质",
-      "valueStatus": "PRESENT",
-      "originalAmount": 0.9,
-      "computedAmount": 1.35,
       "unit": "g",
-      "formula": "0.9 g/100g × 150 g ÷ 100 = 1.35 g"
+      "originalAmount": 0.9,
+      "computedAmount": 1.8,
+      "displayText": "1.8",
+      "formula": "0.9 g/100g × 200 g ÷ 100g = 1.8 g"
     }
   ],
   "estimated": true,
   "estimatedReason": "基于每 100g 参考值的线性折算，未考虑烹饪损失",
-  "missingNutrients": ["VITAMIN_A"],
+  "missingNutrients": ["维生素D"],
   "sources": [
-    { "id": 1, "name": "演示数据集（不可用于对外发布）", "code": "DEMO_DATASET" }
+    {
+      "id": 1,
+      "name": "《AI 食品营养师演示数据集（非真实来源）》",
+      "code": "DEMO-SEED",
+      "sourceType": "DEMO",
+      "applicableScope": "成人一般人群（演示占位）"
+    }
   ]
 }
 ```
@@ -252,6 +273,16 @@
 > - `estimated` 恒为 `true` 并给出 `estimatedReason`：PRD 8.2 要求计算结果标注为估算值/说明口径。
 > - `MISSING` 的营养素**不出现在 `items` 中**，只列入 `missingNutrients`。
 > - 计算结果必须能追溯回原始数据 → 每个 item 带 `formula`，整体带 `sources`。
+>
+> **三个容易写错的字段**
+> - `missingNutrients` 装的是**中文名**（`"维生素D"`），不是内部编码（`"VITAMIN_D"`）——
+>   它是给人看的清单，界面拿到就直接渲染。要编码请用 `items[].nutrientCode`。
+> - `items[]` **没有** `valueStatus` 字段：能进 `items` 就意味着这一项有确定数值，
+>   `MISSING` 的项根本不在里面。用 `missingNutrients` 是否包含它来判断缺失。
+> - `inputWeight` / `inputUnit` 是**回显用户输入**（前端表单值），不是计算结果；
+>   `originalAmount` 与 `computedAmount` 成对给出，界面才能把算式完整展示给用户复核。
+> - 单位不是可选参数：`weightUnit` 缺失会返回 `40001`，不要指望后端默认成 `g`。
+>   `weightUnit` 接受 `g` / `kg` / `ml` / `l`（不区分大小写），由 `NutritionMath.toGrams` 归一。
 
 ### 3.5 `AgentAnswer` — Agent 结构化输出（PRD 6.4）
 
@@ -260,17 +291,32 @@
   "answer": "西红柿富含番茄红素、维生素C、钾和膳食纤维…",
   "intent": "NUTRITION_VALUE",
   "foodReferences": [
-    { "foodId": 12, "name": "西红柿", "variantId": 21, "variantLabel": "生（可食部）", "coverImageUrl": "…" }
+    { "foodId": 1, "foodName": "西红柿", "variantId": 1, "variantLabel": "生", "coverImageUrl": null }
   ],
   "nutritionFacts": [
     {
       "foodName": "西红柿",
-      "variantLabel": "生（可食部）",
+      "variantLabel": "生",
+      "nutrientCode": "ENERGY",
       "nutrientName": "热量",
-      "amount": 15,
+      "amount": "15",
       "unit": "kcal",
-      "referenceNote": "每 100g 可食部",
-      "sourceName": "演示数据集"
+      "valueStatus": "PRESENT",
+      "displayText": "15",
+      "referenceNote": "每100g可食部",
+      "sourceName": "《AI 食品营养师演示数据集（非真实来源）》"
+    },
+    {
+      "foodName": "西红柿",
+      "variantLabel": "生",
+      "nutrientCode": "VITAMIN_D",
+      "nutrientName": "维生素D",
+      "amount": null,
+      "unit": "ug",
+      "valueStatus": "MISSING",
+      "displayText": "暂无数据",
+      "referenceNote": "每100g可食部",
+      "sourceName": "《AI 食品营养师演示数据集（非真实来源）》"
     }
   ],
   "recommendations": [
@@ -281,7 +327,7 @@
   ],
   "sources": [
     { "type": "STRUCTURED_DATA", "title": "演示数据集", "refId": "DEMO_DATASET", "url": null },
-    { "type": "KNOWLEDGE", "title": "膳食纤维的作用", "refId": "KDOC_0007#chunk2", "url": null }
+    { "type": "KNOWLEDGE", "title": "营养素基础知识：六大类营养素与能量", "refId": "KDOC_0001#chunk3", "url": null }
   ],
   "uncertainty": [
     { "code": "DATA_MISSING", "text": "该食品的部分维生素数据尚未录入，未在回答中给出相关数值" }
@@ -300,6 +346,15 @@
 > 2. **`sources` 由后端工具层注入**，模型自己输出的来源一律丢弃（PRD FR-011 验收：不展示虚构出处）。
 > 3. `uncertainty` 非空时前端必须可见地展示，不得静默丢弃。
 
+> **`sources[].refId` 必须指向种子库中真实存在的记录。** 知识型来源由
+> `AgentToolkit.searchNutritionKnowledge` 构造为 `KDOC_<docId 左补零至 4 位>#chunk<chunkId>`，
+> 其中 `chunkId` 是 `knowledge_chunk.id`（全局自增主键），**不是**文档内的 `chunk_index`——
+> 两者在 docId ≥ 2 时不再相等。种子库现有 6 篇知识文档、18 个分块，因此
+> `KDOC_0007#chunk2` 这类示例是**查无此条**的引用。写示例、写测试、写演示数据时都必须先
+> 到 `backend/src/main/resources/db/h2/data.sql` 里核对 id：编造的来源会被界面渲染成一条
+> 正式的「参考来源」，用户无法分辨，这正是 FR-011 要禁止的。
+> 结构化数值来源用 `STRUCTURED_DATA` + `refId = "DEMO_DATASET"`（对应 `data_source.code = 'DEMO-SEED'`）。
+
 ### 3.6 `ImageRecognitionResult` — 识别结果
 
 ```json
@@ -308,8 +363,8 @@
   "status": "SUCCESS",
   "imageUrl": "/api/v1/files/recognition/2026/10/ab12cd.png",
   "candidates": [
-    { "foodId": 12, "foodName": "西红柿", "confidence": 0.92, "reason": "形态与颜色匹配", "coverImageUrl": "…" },
-    { "foodId": 18, "foodName": "圣女果", "confidence": 0.61, "reason": "同为小型红色浆果", "coverImageUrl": "…" }
+    { "foodId": 11, "foodName": "蓝莓", "confidence": 0.92, "reason": "形态与颜色匹配", "coverImageUrl": null },
+    { "foodId": 21, "foodName": "葡萄", "confidence": 0.61, "reason": "同为深色小型浆果", "coverImageUrl": null }
   ],
   "confirmedFoodId": null,
   "notice": "识别结果仅为候选，请您确认后再查看营养数据。混合菜品的食材、重量及烹饪用油无法仅凭图片确定。",
@@ -387,7 +442,17 @@
 { "sessionId": 88, "question": "西红柿的营养价值有哪些？", "foodId": 12, "variantId": 21, "weight": null }
 ```
 
-**响应**：`AgentAnswer`（见 3.5）。
+**响应**：`ChatResponse`——**不是**裸的 `AgentAnswer`。
+
+```json
+{ "sessionId": 88, "sessionTitle": "西红柿的营养价值有哪些？", "answer": { /* AgentAnswer，见 3.5 */ } }
+```
+
+> 为什么要在 `AgentAnswer` 外面包一层：首次提问时后端会按问题自动建会话，前端必须拿到
+> `sessionId` 才能继续多轮对话（否则每轮都会开一个新会话）。会话元信息属于「这次请求的结果」，
+> 不属于「回答内容」，因此不并进 `AgentAnswer`——那个结构会被原样存进
+> `chat_message.structured_output`，塞进易过期的会话字段只会让历史记录失真。
+> 前端在 `frontend/src/api/agent.js` 里摊平：视图层拿到的仍是契约 3.5 的形状，外加 `sessionId`。
 
 > 降级要求（PRD 6.5 末段）：模型服务不可用时返回 `degraded: true` + `50301/50302`，
 > **且不影响** `/foods/**`、`/nutrition/**`、`/categories` 等非 AI 接口。
@@ -402,13 +467,18 @@
 
 ```json
 {
-  "docId": 7, "chunkId": 23, "title": "膳食纤维的作用", "heading": "可溶性纤维",
+  "docId": 1, "chunkId": 3, "title": "营养素基础知识：六大类营养素与能量", "heading": "碳水化合物与膳食纤维",
   "snippet": "…", "category": "NUTRIENT", "score": 3.2,
-  "source": { "name": "…", "publisher": "…", "version": "…", "url": null, "applicableScope": "成人一般人群" }
+  "source": { "name": "《中国食物成分表》第6版", "publisher": "北京大学医学出版社", "version": "第6版", "url": null, "applicableScope": "成人一般人群（演示占位）" }
 }
 ```
 
 > 只检索 `publish_status = PUBLISHED`、`review_status = APPROVED` 且未过 `valid_until` 的内容。
+> `chunkId` 是 `knowledge_chunk.id`（全局自增主键），**不是**文档内的 `chunk_index`；上例对应种子库
+> `backend/src/main/resources/db/h2/data.sql:707`（`knowledge_chunk`：`id=3`、`doc_id=1`、`chunk_index=2`）
+> 与 `h2/data.sql:694`（文档「营养素基础知识：六大类营养素与能量」，`source_id=2`）。
+> **2026-10 修订**：本示例原先写作 `docId: 7 / chunkId: 23 / title: "膳食纤维的作用"`，三者在种子库中**均不存在**
+> （`knowledge_doc` 只有 `id 1~6`，`knowledge_chunk` 只有 `id 1~18`），已按真实数据替换。
 
 ### 4.5 图片识别
 

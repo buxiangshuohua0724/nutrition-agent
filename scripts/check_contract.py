@@ -311,25 +311,262 @@ else:
         }
         nv_cols, nv_rows = insert_rows(data_sql, 'nutrition_value')
         _, variant_rows = insert_rows(data_sql, 'food_state_variant')
+        _, nutrient_rows = insert_rows(data_sql, 'nutrient')
         real_status = {}
         if nv_cols and 'value_status' in nv_cols:
             idx_st = nv_cols.index('value_status')
             for r in nv_rows or []:
                 st = unquote(r[idx_st])
                 real_status[st] = real_status.get(st, 0) + 1
+        # 口径说明（不要改回"逐字段必须相等"）：
+        #   data.sql 的 nutrition_value 是**不完整**的：种子实测 511 行，
+        #   而 37 个形态 × 14 个启用营养素应为 518 行 —— 有 7 行整行不存在。
+        #   生成器 scripts/gen_demo_dataset.py 会把这些整行缺失补成**显式的** MISSING
+        #   （amount=null、displayText=暂无数据，来源沿用该形态已有行的 source_id），
+        #   因为"行不存在"和"项暂无数据"在界面上必须表达同一种事实。
+        #   于是：
+        #     * present / zero 是**事实计数**，必须逐位相等（多一个少一个都是脱节）；
+        #     * demo 的 missing 允许更大，但必须恰好等于
+        #       「data.sql 的 missing + (形态数 × 启用营养素数 − data.sql 实际行数)」，
+        #       即多出来的缺口只能来自"整行不存在的行被补成 MISSING"这一种原因。
+        #   这样它依然能抓住生成物过期、凭空多出/少掉缺失项、或悄悄补齐了数值。
+        variant_count = len(variant_rows or [])
+        nutrient_count = len(nutrient_rows or [])
+        real_row_count = len(nv_rows or [])
+        absent_rows = variant_count * nutrient_count - real_row_count  # 整行缺失的行数
+        real_missing = real_status.get('MISSING', 0)
+        min_missing = real_missing + absent_rows
         expect = {
             'foodCount': len(food_rows or []),
-            'variantCount': len(variant_rows or []),
+            'variantCount': variant_count,
             'presentCount': real_status.get('PRESENT', 0),
             'zeroCount': real_status.get('ZERO', 0),
-            'missingCount': real_status.get('MISSING', 0),
+            # missingCount 不要求相等，真正的判定在下面（>= 且差值恰好为 absent_rows）
+            'missingCount': demo_stats.get('missingCount'),
         }
-        notes.append('演示数据集统计 %s（对照 data.sql %s）' % (demo_stats, expect))
-        drift = {k: (demo_stats.get(k), v) for k, v in expect.items() if demo_stats.get(k) != v}
+        notes.append(
+            '演示数据集统计 %s（对照 data.sql %s；data.sql 实测 %d 行，'
+            '形态×启用营养素 = %d×%d，整行缺失 %d 行 → 补齐后 missingCount 应为 %d）'
+            % (demo_stats, expect, real_row_count, variant_count, nutrient_count,
+               absent_rows, min_missing))
+        drift = {k: (demo_stats.get(k), v) for k, v in expect.items() if k != 'missingCount' and demo_stats.get(k) != v}
         if drift:
             problems.append(
                 'demo-dataset.js 已与 data.sql 脱节（字段: 生成值 vs 实际值 = %s），'
                 '请重新运行 scripts/gen_demo_dataset.py' % drift)
+        demo_missing = demo_stats.get('missingCount')
+        if demo_missing is None:
+            problems.append('demo-dataset.js 的 DEMO_DATASET_STATS 缺少 missingCount')
+        elif demo_missing < min_missing:
+            problems.append(
+                'demo-dataset.js 的 missingCount=%s 小于应有缺口 %d（data.sql 实测 MISSING %d + '
+                '整行缺失 %d）—— 缺失项被吞掉了，请重新运行 scripts/gen_demo_dataset.py'
+                % (demo_missing, min_missing, real_missing, absent_rows))
+        elif demo_missing > min_missing:
+            problems.append(
+                'demo-dataset.js 的 missingCount=%s 大于应有缺口 %d（data.sql 实测 MISSING %d + '
+                '整行缺失 %d）—— 多出来的缺失无法用"整行补 MISSING"解释，请检查生成器'
+                % (demo_missing, min_missing, real_missing, absent_rows))
+
+# ------------------------------------------------- 7. 知识引用 refId 守护
+# 规则（见 docs/api-contract.md 与 docs/agent-design.md）：
+#     KDOC_<docId 左补零至 4 位>#chunk<chunkId>
+# 其中 chunkId 是 knowledge_chunk.id —— **全局自增主键**，不是文档内的
+# chunk_index。这个格式极易写错，而写错了在界面上看不出来（它只是一个查不到
+# 的字符串），真实事故已经发生过两次：
+#   · KDOC_0007#chunk2  —— 种子库只有 6 篇文档、18 个分块，该引用查无此条；
+#   · KDOC_0005#chunk1  —— 误把 chunk_index 当成 chunk id：chunk.id=1 其实属于
+#                          doc_id=1，而文档 5 内 chunk_index=1 的分块是 id=14。
+# 所以这里把每个 refId 拿回 data.sql 核对两件事：①分块真实存在；②该分块的
+# doc_id 与 refId 里的 docId 一致 —— 后者是「取错 chunk_index」唯一能抓住的判据。
+DEMO_DATA = os.path.join(ROOT, 'frontend', 'src', 'api', 'demo-data.js')
+REFID_RE = re.compile(r"""refId\s*:\s*['"](KDOC_[^'"]*)['"]""")
+KDOC_RE = re.compile(r'^KDOC_(\d{4})#chunk(\d+)$')
+# 同一条规则的另一处入口：`DEMO_KNOWLEDGE` 用分开的 docId / chunkId 两个字段描述引用
+DOCID_RE = re.compile(r'docId\s*:\s*(\d+)')
+CHUNKID_NEAR_RE = re.compile(r'chunkId\s*:\s*(\d+)')
+
+
+def as_int(v):
+    """把 SQL 里的数字字面量归一成不带前导零的字符串，便于跨写法比较"""
+    try:
+        return str(int(str(v).strip()))
+    except (TypeError, ValueError):
+        return None
+
+
+def kdoc_span(raw):
+    """把一个 KDOC_ 引用解析成 (docId, chunkId) 的归一字符串；不合法返回 (None, None)"""
+    m = KDOC_RE.match(raw)
+    if not m:
+        return None, None
+    return as_int(m.group(1)), as_int(m.group(2))
+
+
+def check_kdoc(where, raw, want_doc, chunk_id, chunk_by_id, chunk_id_by_doc_index):
+    """核对一个「引用 → 知识分块」的指向关系，返回 (True, note) 或 (False, problem)。
+
+    只负责两条规则，且**假定调用方已确认 chunk_id 存在于 chunk_by_id**：
+      ①分块真实存在（由调用方先查，因为报错文本要用到分块总数）；
+      ②该分块的 doc_id 必须等于引用里的 docId —— 这是「把文档内 chunk_index 当成
+        全局 chunk id」唯一能抓住的判据。
+    问题文本集中在这里，让 refId 字面量与 docId/chunkId 字段对两条入口共用一套措辞；
+    调用方已判不存在的分支不再重复判一次。
+    """
+    real_doc, _real_idx = chunk_by_id[chunk_id]
+    if real_doc != want_doc:
+        right_cid = chunk_id_by_doc_index.get((want_doc, chunk_id))
+        if right_cid is not None:
+            return False, (
+                "%s 的引用 '%s' 取的是 chunk_index：knowledge_chunk.id=%s 属于 doc_id=%s，与引用里的 "
+                "docId=%s 不一致（文档 %s 内 chunk_index=%s 的分块是 id=%s，应为 'KDOC_%04d#chunk%s'）"
+                % (where, raw, chunk_id, real_doc, want_doc, want_doc, chunk_id,
+                   right_cid, int(want_doc), right_cid))
+        return False, (
+            "%s 的引用 '%s' 的 docId 与分块对不上：knowledge_chunk.id=%s 属于 doc_id=%s，"
+            "而引用里写的是 docId=%s"
+            % (where, raw, chunk_id, real_doc, want_doc))
+    return True, ("%s 的引用 '%s' 一致" % (where, raw))
+
+
+def kdoc_missing_problem(where, raw, chunk_id, chunk_by_id, chunk_row_count):
+    """分块不存在时的报错文本（两条入口共用）"""
+    return (
+        "%s 的引用 '%s' 查无此分块：knowledge_chunk 中没有 id=%s 的行"
+        "（data.sql 实测 %d 个分块，id 范围 %d~%d）"
+        % (where, raw, chunk_id, chunk_row_count,
+           min(int(k) for k in chunk_by_id), max(int(k) for k in chunk_by_id)))
+
+
+# 记录两条入口各自实际核对到几条引用，用于输出「覆盖了哪些规则」的提示
+kdoc_covered = set()
+
+
+if not os.path.isfile(DEMO_DATA):
+    problems.append('frontend/src/api/demo-data.js 不存在，无法校验知识引用 refId')
+else:
+    kc_cols, kc_rows = insert_rows(data_sql, 'knowledge_chunk')
+    kd_cols, kd_rows = insert_rows(data_sql, 'knowledge_doc')
+    if kc_cols is None:
+        problems.append('data.sql 中找不到 knowledge_chunk 的 INSERT，无法校验知识引用 refId')
+    else:
+        ci_id = kc_cols.index('id')
+        ci_doc = kc_cols.index('doc_id')
+        ci_cidx = kc_cols.index('chunk_index')
+        chunk_by_id = {}             # chunk.id -> (doc_id, chunk_index)
+        chunk_id_by_doc_index = {}   # (doc_id, chunk_index) -> chunk.id
+        for r in kc_rows:
+            c_id = as_int(unquote(r[ci_id]))
+            c_doc = as_int(unquote(r[ci_doc]))
+            c_idx = as_int(unquote(r[ci_cidx]))
+            chunk_by_id[c_id] = (c_doc, c_idx)
+            chunk_id_by_doc_index[(c_doc, c_idx)] = c_id
+
+        doc_meta = {}
+        if kd_cols is not None:
+            want = ('id', 'title', 'review_status', 'publish_status', 'valid_until', 'deleted_at')
+            di = {n: kd_cols.index(n) for n in want if n in kd_cols}
+            if 'id' in di:
+                for r in kd_rows:
+                    doc_meta[as_int(unquote(r[di['id']]))] = {
+                        'title': unquote(r[di['title']]) if 'title' in di else '—',
+                        'review': unquote(r[di['review_status']]) if 'review_status' in di else '—',
+                        'publish': unquote(r[di['publish_status']]) if 'publish_status' in di else '—',
+                        'valid_until': unquote(r[di['valid_until']]) if 'valid_until' in di else '—',
+                        'deleted_at': unquote(r[di['deleted_at']]) if 'deleted_at' in di else '—',
+                    }
+
+        def line_of(text, offset):
+            """把字符偏移折算成行号（报错里必须给出可点的行号）"""
+            return text.count('\n', 0, offset) + 1
+
+        demo_src = read(DEMO_DATA)
+        refids = list(REFID_RE.finditer(demo_src))
+        ok_refs = []
+        for m in refids:
+            raw = m.group(1)
+            line_no = line_of(demo_src, m.start())
+            want_doc, num = kdoc_span(raw)
+            if want_doc is None:
+                problems.append(
+                    "demo-data.js:%d 的 refId '%s' 格式不合法：应为 "
+                    "KDOC_<docId 左补零至 4 位>#chunk<chunkId>，例如 'KDOC_0005#chunk14'"
+                    % (line_no, raw))
+                continue
+            if num not in chunk_by_id:
+                problems.append(kdoc_missing_problem(
+                    "demo-data.js:%d" % line_no, raw, num, chunk_by_id, len(kc_rows)))
+                continue
+            kdoc_covered.add('refId')
+            good, msg = check_kdoc("demo-data.js:%d" % line_no, raw, want_doc, num,
+                                   chunk_by_id, chunk_id_by_doc_index)
+            if not good:
+                problems.append(msg)
+                continue
+            ok_refs.append((raw, want_doc))
+
+        # ---- ②对象字段对 `docId: N` / `chunkId: M`（DEMO_KNOWLEDGE）----
+        # 与 refId 字面量是**同一个错误面**：这两个字段最终也会被拼成给用户看的引用，
+        # 但错误的后果更重 —— 它们是"检索结果"，写错会展示一条声称检索到、实际不存在的记录。
+        # 上一版守护只扫 refId 字面量，这一处正好从底下漏了过去。
+        n_obj_checked = 0
+        for m in DOCID_RE.finditer(demo_src):
+            f_line = line_of(demo_src, m.start())
+            seg = demo_src[m.end():m.end() + 240]
+            cm = CHUNKID_NEAR_RE.search(seg)
+            if not cm:
+                problems.append(
+                    "demo-data.js:%d 写了 docId=%s 但邻近 240 字符内没有 chunkId："
+                    "两者必须成对出现，否则无法判断这条引用指向哪个分块"
+                    % (f_line, m.group(1)))
+                continue
+            c_line = f_line + seg.count('\n', 0, cm.start())
+            want_doc, num = as_int(m.group(1)), as_int(cm.group(1))
+            where = "demo-data.js:%d/%d 的 docId=%s + chunkId=%s" % (f_line, c_line, want_doc, num)
+            if num not in chunk_by_id:
+                problems.append(kdoc_missing_problem(where, 'docId=%s chunkId=%s' % (want_doc, num),
+                                                     num, chunk_by_id, len(kc_rows)))
+                continue
+            n_obj_checked += 1
+            kdoc_covered.add('field')
+            good, msg = check_kdoc(where, 'docId=%s chunkId=%s' % (want_doc, num), want_doc, num,
+                                   chunk_by_id, chunk_id_by_doc_index)
+            if not good:
+                problems.append(msg)
+                continue
+            # 这一条是演示态下的"检索结果"，会直接展示给用户，所以顺带核对目标文档
+            # 处于「已审核 + 已发布 + 未删除」——不通过时给出提示（不判失败：演示数据
+            # 允许提前写好，真实可检索性由后端检索接口决定）。
+            d = doc_meta.get(want_doc)
+            if d is not None and (d['publish'] != 'PUBLISHED' or d['review'] != 'APPROVED'
+                                  or d['deleted_at'] is not None):
+                notes.append(
+                    '演示知识记录状态提示: docId=%s「%s」review_status=%s publish_status=%s '
+                    'deleted_at=%s —— 不处于「已审核且已发布」，这条演示"检索结果"在真实环境里'
+                    '检索不到' % (want_doc, d['title'], d['review'], d['publish'], d['deleted_at']))
+
+        # ④ 可检索性只作提示，不用 wall-clock 比较有效期：种子数据的 valid_until
+        # 一旦到期，检查会毫无征兆地开始失败，那不是契约问题。
+        if not kdoc_covered:
+            notes.append('知识引用 refId: demo-data.js 中未出现 KDOC_ 形式的引用字面量，'
+                         '也未出现 docId/chunkId 字段对')
+        else:
+            kinds = []
+            if 'refId' in kdoc_covered:
+                kinds.append('%d 条 refId 字面量' % len(refids))
+            if 'field' in kdoc_covered:
+                kinds.append('%d 组 docId/chunkId 字段对' % n_obj_checked)
+            notes.append('知识引用 refId: %s 全部指向真实分块且 docId 一致（%s）'
+                         % (' + '.join(kinds), ', '.join(r for r, _ in ok_refs) or '字段对形式'))
+            for d_id in sorted({d for _, d in ok_refs}, key=lambda x: int(x)):
+                d = doc_meta.get(d_id)
+                if d is None:
+                    continue
+                if d['publish'] != 'PUBLISHED' or d['review'] != 'APPROVED' or d['deleted_at'] is not None:
+                    notes.append(
+                        '引用文档状态提示: refId 引用的 doc %s「%s」review_status=%s publish_status=%s '
+                        'deleted_at=%s —— 不处于「已审核且已发布」，该分块可能不会被检索返回'
+                        % (d_id, d['title'], d['review'], d['publish'], d['deleted_at']))
 
 # ---------------------------------------------------------------- 输出
 print('=' * 72)

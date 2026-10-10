@@ -25,6 +25,28 @@
   * **三态原样保留**：`MISSING` 的 `amount` 必须是 `null`，绝不在生成期写成 0；
   * 生成结果只覆盖"事实数据"（分类、食品、形态、营养表）；
     由人撰写的演示文案（AI 回答、知识文档、用户资料等）仍放在 `demo-data.js` 里手工维护。
+
+## 整行缺失的补齐（不要删掉这段逻辑）
+
+种子库的 `nutrition_value` 是 **不完整** 的：实测 37 个形态 × 14 个启用营养素应为 518 行，
+而 `data.sql` 只有 511 行，即 **有 7 行整行不存在**（它们是：
+
+    variant 34 / food 21 葡萄，缺 VITAMIN_A
+    variant 35 / food 22 橙子，缺 VITAMIN_A、OMEGA3
+    variant 36 / food 23 牛肉，缺 VITAMIN_A
+    variant 37 / food 23 牛肉，缺 VITAMIN_A、VITAMIN_C、OMEGA3
+
+）。"整行不存在"与"行存在但 `value_status='MISSING'`"在数据库里是两回事，
+但**对界面是同一种事实**：这项营养没有可靠数据。
+
+如果脚本只搬运已有行，生成物里葡萄的营养表就会**整项不出现**维生素 A —— 表里 13 行、
+提示却说"本表有 2 项暂无数据"，用户与实现者都被误导（这违反"缺数据必须显示暂无数据"的硬约束）。
+
+因此 `backfill_variants()` 会按**全部 14 个启用营养素**补齐每个形态的表：
+库里缺的行一律生成为 `value_status='MISSING'`、`amount=NULL`、`displayText='暂无数据'`，
+`source_id` 沿用该形态已有行的来源（**绝不允许凭空造一个来源**）。
+补齐后每个形态必须恰好 14 行，否则 `main()` 直接 `SystemExit` —— 宁可不生成，
+也不要生成一个"看起来正常"的错表。
 """
 
 import io
@@ -192,15 +214,83 @@ def js_str(value):
     return json.dumps(str(value), ensure_ascii=False)
 
 
+def backfill_variants(variants, nutrients, values_by_variant):
+    """把每个形态的营养行补齐到「全部启用营养素恰好一行」。
+
+    为什么要补：种子库的 ``nutrition_value`` 少 7 行（详见模块 docstring），
+    缺的行在数据库里"根本不存在"。若原样搬运，这些项在生成物里就会整个消失，
+    前端把 3 项缺失渲染成 2 项。补齐把它们变成**显式的** ``MISSING``，
+    于是"缺数据 → 显示暂无数据"这条硬约束在演示态下也成立。
+
+    补齐行的 ``source_id`` **沿用它所属形态已有行的来源**，不新增、不臆造：
+    来源可追溯是展示层的硬约束（来源必须真实存在于 ``data_source``）。
+
+    :param variants: 全部食品形态（``food_state_variant`` 行）
+    :param nutrients: ``{nutrient_id: nutrient 行}``
+    :param values_by_variant: ``{variant_id: [nutrition_value 行]}``
+    :returns: ``{variant_id: [行] }``，每个形态恰好 ``len(nutrients)`` 行，按 ``display_order`` 排好序
+    :raises SystemExit: 某形态在种子里一行都没有，或已有行的 ``source_id`` 不一致
+    """
+    nutrient_ids = sorted(nutrients)
+    rows_by_variant = {}
+    for v in variants:
+        vid = v["id"]
+        existing = values_by_variant.get(vid, [])
+        by_nutrient = {nv["nutrient_id"]: nv for nv in existing}
+
+        source_ids = {nv["source_id"] for nv in existing}
+        if not source_ids:
+            # 没有任何"样板行"可沿用来源。这时**不允许**瞎编一个 source_id，
+            # 宁可让生成失败，也不要产出一个来源不可追溯的演示数据。
+            raise SystemExit(
+                "形态 %d（food_id=%s）在种子数据里一行 nutrition_value 都没有，"
+                "无法确定补齐行的来源，拒绝生成" % (vid, v["food_id"])
+            )
+        if len(source_ids) > 1:
+            raise SystemExit(
+                "形态 %d 的 nutrition_value 有多个 source_id %s，补齐来源无从唯一确定，拒绝生成"
+                % (vid, sorted(source_ids, key=lambda x: (x is None, x)))
+            )
+        source_id = source_ids.pop()
+
+        # 以该形态已有的第一行为样板，复制无法从 nutrient 元数据推出的口径字段
+        # （reference_amount / reference_unit / reference_note / review_status 等）。
+        template = existing[0]
+
+        filled = []
+        for nid in nutrient_ids:
+            hit = by_nutrient.get(nid)
+            if hit is not None:
+                filled.append(hit)
+                continue
+            row = dict(template)
+            row["nutrient_id"] = nid
+            # 三态之"MISSING"：没录入。amount 必须是 None，绝不能写成 0。
+            row["value_status"] = "MISSING"
+            row["amount"] = None
+            row["source_detail"] = None
+            filled.append(row)
+
+        filled.sort(key=lambda nv: nutrients[nv["nutrient_id"]]["display_order"])
+        rows_by_variant[vid] = filled
+    return rows_by_variant
+
+
 def display_text(status, amount, unit):
-    """契约 3.3：displayText 由后端给出。三态在此处如实表达。"""
+    """契约 3.3：`displayText` 只放数值本身，**不带单位**，单位由 `unit` 字段单独给出。
+
+    与后端 `NutritionMath.displayText(BigDecimal)` 保持同一口径：去掉无意义的尾随零
+    （`15.0` → `"15"`、`0` → `"0"`）。单位交给渲染层拼（`frontend/src/utils/format.js`
+    的 `formatNutrition`），这样前端换单位或在数字上做对齐时才不必解析字符串。
+
+    `unit` 参数保留是为了不改调用点签名，但**不再参与拼接**。
+    """
     if status == "MISSING":
         return "暂无数据"
     if amount is None:
         return "暂无数据"
-    # 与种子数据一致：整数不显示小数点，微克用 ug
-    text = num_str(amount)
-    return "%s %s" % (text, unit)
+    # 与种子数据一致：整数不显示小数点
+    return num_str(amount)
 
 
 def main():
@@ -234,6 +324,42 @@ def main():
     values_by_variant = {}
     for nv in db["nutrition_value"]:
         values_by_variant.setdefault(nv["variant_id"], []).append(nv)
+
+    # --- 把"整行缺失"补成显式 MISSING（见模块 docstring） ---
+    all_variants = [v for rows in variants_by_food.values() for v in rows]
+    rows_by_variant = backfill_variants(all_variants, nutrients, values_by_variant)
+    nutrient_ids = sorted(nutrients)
+    print(
+        "补齐营养行：种子 %d 行 + 新增 %d 行缺失行 = %d 行（%d 形态 × %d 营养素）"
+        % (
+            len(db["nutrition_value"]),
+            sum(len(r) for r in rows_by_variant.values()) - len(db["nutrition_value"]),
+            sum(len(r) for r in rows_by_variant.values()),
+            len(all_variants),
+            len(nutrient_ids),
+        )
+    )
+    # 断言 1：每个形态补齐后必须**恰好** 14 行（形如 37×14=518 的完整方阵）。
+    bad_shape = [
+        (vid, len(rows)) for vid, rows in sorted(rows_by_variant.items()) if len(rows) != len(nutrient_ids)
+    ]
+    if bad_shape:
+        raise SystemExit(
+            "补齐后行数不等于 %d 的形态：%s —— 拒绝生成演示数据集（宁可不生成，也不生成错表）"
+            % (len(nutrient_ids), bad_shape)
+        )
+    # 断言 2：补齐后每个形态必须覆盖全部启用营养素，且每个营养素只有一行。
+    for vid, rows in rows_by_variant.items():
+        got = [r["nutrient_id"] for r in rows]
+        if sorted(got) != nutrient_ids:
+            raise SystemExit(
+                "形态 %d 补齐后未覆盖全部营养素：缺 %s，重复 %s，拒绝生成"
+                % (
+                    vid,
+                    sorted(set(nutrient_ids) - set(got)),
+                    sorted(nid for nid in set(got) if got.count(nid) > 1),
+                )
+            )
 
     STATE_LABEL = {"RAW": "生", "COOKED": "熟", "PROCESSED": "加工"}
 
@@ -344,7 +470,7 @@ def main():
     w("    valueStatus: nv.valueStatus,")
     w("    unit: meta.unit,")
     w("    amount: missing ? null : nv.amount,")
-    w("    displayText: missing ? '暂无数据' : `${nv.amount} ${meta.unit}`,")
+    w("    displayText: missing ? '暂无数据' : `${nv.amount}`,")
     w("    source: SOURCE,")
     w("  }")
     w("}")
@@ -372,10 +498,15 @@ def main():
         variant_label = None
         if default_variant:
             variant_label = state_label(default_variant)
-            for nv in values_by_variant.get(default_variant["id"], []):
-                if nutrients[nv["nutrient_id"]]["code"] == "ENERGY" and nv["value_status"] == "PRESENT":
+            for nv in rows_by_variant.get(default_variant["id"], []):
+                if nutrients[nv["nutrient_id"]]["code"] != "ENERGY":
+                    continue
+                # 三态方向：ZERO 是"确认是 0"，它是一个**确定的**能量值 0 kcal，
+                # 必须原样给出，绝不能被当成"缺失"而写成 null（那会把 0 显示成「暂无数据」）。
+                # 只有 MISSING（没录入）才是 energyAvailable=false。
+                if nv["value_status"] in ("PRESENT", "ZERO"):
                     energy = nv["amount"]
-                    break
+                break
         w("  {")
         w("    id: %s," % num_str(f["id"]))
         w("    code: %s," % js_str(f["code"]))
@@ -387,6 +518,10 @@ def main():
         w("    coverImageUrl: null,")
         w("    intro: %s," % js_str(f["intro"]))
         w("    energyKcal: %s," % num_str(energy))
+        # 契约 3.1：energyAvailable 是「热量有确定数值」的显式标记（缺失时 false，
+        # 且 energyKcal 必须为 null）。前端 FoodCard.vue 用
+        # `food.energyAvailable === false` 判断显示「暂无数据」，缺这个字段该分支恒不成立。
+        w("    energyAvailable: %s," % ("true" if energy is not None else "false"))
         w("    defaultVariantId: %s," % num_str(default_variant["id"] if default_variant else None))
         w("    variantLabel: %s," % js_str(variant_label))
         w("  },")
@@ -458,10 +593,9 @@ def main():
     present_total = 0
     for f in foods:
         for v in variants_by_food.get(f["id"], []):
-            rows = sorted(
-                values_by_variant.get(v["id"], []),
-                key=lambda nv: order[nv["nutrient_id"]],
-            )
+            # 补齐后每个形态恒有 14 行（缺失项已被显式写成 MISSING），
+            # 因此这里不再有"整表不存在"的形态。
+            rows = rows_by_variant.get(v["id"], [])
             if not rows:
                 continue
             miss = sum(1 for r in rows if r["value_status"] == "MISSING")
@@ -475,9 +609,15 @@ def main():
             w("    foodId: %s," % num_str(f["id"]))
             w("    foodName: %s," % js_str(f["name"]))
             w("    variantLabel: %s," % js_str(state_label(v)))
-            w("    referenceAmount: 100,")
-            w("    referenceUnit: 'g',")
-            w("    referenceNote: '每 100g 可食部',")
+            # reference_amount / reference_unit / reference_note 三个口径字段**一律取自该形态
+            # nutrition_value 的第一行**，不再写死。写死的 '每 100g 可食部'（带空格）与种子里
+            # 实际存的值 '每100g可食部'（无空格）并不一致：演示态下用户会看到一种写法、真实接口下
+            # 看到另一种，而两处界面长得一样，这种差异没有任何人会察觉（与 displayText 的单位
+            # 口径是同一类错误）。写死还意味着改种子数据不会反映到演示数据上。
+            template_row = rows[0]
+            w("    referenceAmount: %s," % num_str(template_row.get("reference_amount")))
+            w("    referenceUnit: %s," % js_str(template_row.get("reference_unit")))
+            w("    referenceNote: %s," % js_str(template_row.get("reference_note")))
             w("    rows: [")
             for r in rows:
                 meta = nutrients[r["nutrient_id"]]
@@ -488,8 +628,10 @@ def main():
                     % (r["nutrient_id"], js_str(status), num_str(amount))
                 )
             w("    ].map(toRow),")
-            w("    incomplete: %s," % ("true" if miss else "false"))
-            w("    missingCount: %d," % miss)
+            # 这里**不写** incomplete / missingCount：真实接口的 NutritionTable 没有这两个
+            # 顶层字段（契约 3.3 已按实测删除它们），前端 `NutritionTable.vue:54-63` 在缺字段时
+            # 按 rows 自行统计。演示数据若多写一份，就等于给前端喂了一份"接口永远不给"的形状，
+            # 让「按行统计」这条真实路径在演示态下永远测不到（与 displayText 的单位口径同一类错误）。
             # 数据更新时间：种子数据里 food.published_at / updated_at 均为
             # '2025-01-01 00:00:00'，可直接取用（FR-003 要求展示更新时间）。
             w(
