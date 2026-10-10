@@ -255,10 +255,11 @@ public final class NutritionCalculator {
 | 项 | 内容 |
 | --- | --- |
 | **背景** | 仅用 `amount IS NULL` 表达缺失，无法区分「已知该食品脂肪为 0」与「尚未录入脂肪数据」。 |
-| **决策** | `value_status ENUM('PRESENT','ZERO','MISSING')` + `amount DECIMAL NULL`，并以 CHECK 约束锁定两者一致性（`docs/db/schema.sql:333-337`）。 |
+| **决策** | `value_status VARCHAR(16) NOT NULL DEFAULT 'MISSING'`（取值域 `PRESENT` / `ZERO` / `MISSING`）+ `amount DECIMAL NULL`，并以 CHECK 约束锁定两者一致性（`docs/db/schema.sql` 的 `ck_nv_status_amount`）。 |
 | **理由** | PRD 5.4 第 8 条与 FR-004 验收标准明确要求「不会把未知营养成分自动当作零」。这是**可验证的产品承诺**，必须由数据库兜底而非应用层自觉。 |
 | **代价** | 写入路径略复杂（必须同时维护两列）；备份/导入工具需理解三态语义。 |
 | **强制点** | `ck_nv_status_amount` CHECK：`MISSING→amount IS NULL`、`ZERO→amount = 0`、`PRESENT→amount IS NOT NULL`。任何破坏三态一致性的写入被数据库直接拒绝。 |
+| **取值域类型说明** | 用 `VARCHAR(16)` 而**不是** `ENUM`：H2 2.x 的 `MODE=MySQL` 不支持 `ENUM`，而 dev/test profile 必须能在 H2 上建出同一套表（见 `SchemaParityTest`），两者只能取交集。取值域因此有两道强制：DB 层 `ck_nv_status_amount` 兜语义，应用层 Java 枚举兜取值。若要改回 `ENUM`，需先放弃 H2 上的 schema parity，属需单独决策的变更。 |
 
 #### ADR-03 `[D3]` 单位集中在 `nutrient` 字典，数据行不写死单位
 
@@ -314,9 +315,9 @@ public final class NutritionCalculator {
 | 项 | 内容 |
 | --- | --- |
 | **背景** | 需要支持误删恢复、审计，以及"软删后可重建同名记录"。 |
-| **决策** | 统一 `deleted_at DATETIME NULL`（NULL = 未删除），**唯一约束把 `deleted_at` 纳入键**（如 `uk_food_code (code, deleted_at)`）。 |
-| **理由** | `is_deleted` 布尔只能回答"是否删了"，不能回答"谁在何时删的"。而唯一约束若不带上 `deleted_at`，软删后同名记录将无法重建（MySQL 中 NULL 不参与唯一性比较，正好使未删除行保持互斥）。 |
-| **代价** | 所有查询必须显式带 `deleted_at IS NULL`，容易漏写 → 由 MyBatis-Plus 逻辑删除全局配置兜底。 |
+| **决策** | 统一 `deleted_at DATETIME NULL`（NULL = 未删除）。唯一键写成 `(业务列…, deleted_at, gd_deleted_key)`，其中 `gd_deleted_key` 是生成列：`DATETIME GENERATED ALWAYS AS (IFNULL(deleted_at, '1970-01-01 00:00:00'))`。 |
+| **理由** | `is_deleted` 布尔只能回答"是否删了"，不能回答"谁在何时删的"。~~而唯一约束若不带上 `deleted_at`，软删后同名记录将无法重建（MySQL 中 NULL 不参与唯一性比较，正好使未删除行保持互斥）~~ —— **原文这半句是错的**：MySQL 与 H2 中 NULL 都不参与唯一性比较，`(code, deleted_at)` 这种键在未删除行上**根本不生效**，可以插入任意多条重复记录（含 `nutrition_value` 的 `(variant_id, nutrient_id)` 重复，会造成汇总重复计算）。故必须额外用生成列把 NULL 归一为哨兵值：未删除行由此互相冲突（真正的唯一性），软删后哨兵值不同、同名可重建。该不变量由 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` 卡住。 |
+| **代价** | ① 所有查询必须显式带 `deleted_at IS NULL`，容易漏写 → 由 MyBatis-Plus 逻辑删除全局配置兜底；② 8 张表各多一个生成列（VIRTUAL，不占存储）；③ 同一逻辑身份在同**秒**内被软删两次会被拒绝，属可接受的宁严勿松。 |
 
 ### 4.2 架构补充决策
 

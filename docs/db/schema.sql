@@ -19,11 +19,17 @@
 --      → 营养数据永远挂在 variant 上，绝不挂在 food 上。
 --
 -- [D2] nutrition_value 用三列表达「缺失 / 零 / 有值」：
---        value_status ENUM('PRESENT','ZERO','MISSING') + amount DECIMAL(18,6) NULL
+--        value_status VARCHAR(16) NOT NULL DEFAULT 'MISSING'  （取值域 PRESENT / ZERO / MISSING）
+--        + amount DECIMAL(18,6) NULL
 --      原因：PRD 5.4 第 8 条与验收标准明确要求「不会把未知营养成分自动当作零」。
 --      仅用 amount IS NULL 表达缺失无法区分「已知为 0」与「尚未录入」。
 --      PRESENT → amount 非空；ZERO → amount = 0；MISSING → amount 为 NULL。
 --      应用层禁止用 0 兜底缺失。
+--      ⚠️ 取值域类型：实际 DDL 用 VARCHAR(16) 而**不是** ENUM。原因是 H2 2.x 的
+--      MODE=MySQL 不支持 ENUM，而 dev profile 必须能在 H2 上建同一套表；两者只能
+--      取交集。取值域的强制点有两处：ck_nv_status_amount CHECK（DB 层，兜语义）
+--      + 应用层枚举（Java enum，兜取值）。若将来只在 MySQL 上跑，可再评估换 ENUM，
+--      但那会破坏 schema parity 测试，属于需要单独决策的变更。
 --
 -- [D3] 营养数据与计量单位分离：nutrition_value 关联 nutrient 字典，单位来自字典。
 --      原因：PRD 5.4 第 6 条要求「对单位换算进行统一处理」。单位写死在数据行里
@@ -45,7 +51,20 @@
 --
 -- [D8] 逻辑删除统一用 deleted_at (NULL = 未删除)，不用 is_deleted 布尔。
 --      原因：能同时回答「谁在何时删的」，并可支持误删恢复与审计。
---      注意：唯一约束需带 deleted_at 参与，避免软删后无法重建同名记录。
+--      ⚠️ 唯一约束**不能**直接把 deleted_at 当成一列了事：唯一索引里 NULL 与 NULL
+--      互不相等（MySQL 与 H2 皆然），若键写成 (code, deleted_at)，则 deleted_at 为
+--      NULL 的未删除行**根本不受唯一性约束**，可以插入任意多条重复记录。
+--      → 凡带 deleted_at 的唯一键，必须额外纳入一个把 NULL 归一化的生成列
+--        `gd_deleted_key`（NULL → 哨兵值 1970-01-01 00:00:00，非 NULL 取原值）：
+--          `gd_deleted_key` DATETIME GENERATED ALWAYS AS
+--              (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+--        未删除行由此互相冲突（真正的唯一性），软删后可重建同名记录（哨兵值不同）。
+--      代价：同一逻辑身份在同**秒**内被软删两次（两条 deleted_at 完全相等）会被
+--      拒绝——这在正常业务流程里不可能发生，且宁严勿松，可以接受。
+--      另注意：唯一键同时保留 deleted_at 与本列，是为了让键本身仍能自解释。
+--      受影响表：sys_user、food_category、food、food_alias、food_state_variant、
+--      nutrition_value、user_favorite（food_image / knowledge_doc / chat_session
+--      等只有非唯一索引，不需要该列）。
 -- =============================================================================
 
 SET NAMES utf8mb4;
@@ -68,9 +87,11 @@ CREATE TABLE `sys_user` (
   `created_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at`    DATETIME         NULL,
+  `gd_deleted_key` DATETIME GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+                   COMMENT '[D8] 唯一键代理列：NULL 与 NULL 在唯一索引中互不相等，故把未删除归一为哨兵值',
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_user_username` UNIQUE (`username`, `deleted_at`),
-  CONSTRAINT `uk_user_email`    UNIQUE (`email`,    `deleted_at`)
+  CONSTRAINT `uk_user_username` UNIQUE (`username`, `deleted_at`, `gd_deleted_key`),
+  CONSTRAINT `uk_user_email`    UNIQUE (`email`,    `deleted_at`, `gd_deleted_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户账户（FR-007）';
 
 DROP TABLE IF EXISTS `sys_role`;
@@ -146,8 +167,10 @@ CREATE TABLE `food_category` (
   `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at`  DATETIME         NULL,
+  `gd_deleted_key` DATETIME GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+                   COMMENT '[D8] 唯一键代理列',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_category_slug` (`slug`, `deleted_at`),
+  UNIQUE KEY `uk_category_slug` (`slug`, `deleted_at`, `gd_deleted_key`),
   KEY `idx_category_parent` (`parent_id`),
   CONSTRAINT `fk_category_parent` FOREIGN KEY (`parent_id`) REFERENCES `food_category` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='食品分类（FR-001/FR-002）';
@@ -177,8 +200,10 @@ CREATE TABLE `food` (
   `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at`       DATETIME         NULL,
+  `gd_deleted_key` DATETIME GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+                   COMMENT '[D8] 唯一键代理列',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_food_code` (`code`, `deleted_at`),
+  UNIQUE KEY `uk_food_code` (`code`, `deleted_at`, `gd_deleted_key`),
   KEY `idx_food_name`      (`name`),
   KEY `idx_food_category`  (`category_id`),
   -- 前台查询几乎恒带此条件，独立索引避免回表后再过滤
@@ -197,9 +222,11 @@ CREATE TABLE `food_alias` (
   `weight`     INT          NOT NULL DEFAULT 0 COMMENT '别名匹配权重，越大越优先',
   `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` DATETIME         NULL,
+  `gd_deleted_key` DATETIME GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+                   COMMENT '[D8] 唯一键代理列',
   PRIMARY KEY (`id`),
   -- 同一食品下同一别名不重复；跨食品同名别名在服务层做冲突校验
-  UNIQUE KEY `uk_alias_food` (`food_id`, `alias`, `deleted_at`),
+  UNIQUE KEY `uk_alias_food` (`food_id`, `alias`, `deleted_at`, `gd_deleted_key`),
   KEY `idx_alias_alias` (`alias`),
   CONSTRAINT `fk_alias_food` FOREIGN KEY (`food_id`) REFERENCES `food` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='食品别名（FR-002 搜索范围：中文别名、英文名称）';
@@ -246,8 +273,10 @@ CREATE TABLE `food_state_variant` (
   `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at`      DATETIME         NULL,
+  `gd_deleted_key` DATETIME GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+                   COMMENT '[D8] 唯一键代理列',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_variant_food_state` (`food_id`, `state`, `cooking_method`, `deleted_at`),
+  UNIQUE KEY `uk_variant_food_state` (`food_id`, `state`, `cooking_method`, `deleted_at`, `gd_deleted_key`),
   KEY `idx_variant_food`    (`food_id`),
   KEY `idx_variant_publish` (`publish_status`, `review_status`, `deleted_at`),
   CONSTRAINT `fk_variant_food` FOREIGN KEY (`food_id`) REFERENCES `food` (`id`)
@@ -288,17 +317,20 @@ CREATE TABLE `data_source` (
   `code`             VARCHAR(64)  NOT NULL,
   `name`             VARCHAR(255) NOT NULL COMMENT '如《中国食物成分表》第6版',
   `source_type`      VARCHAR(24)  NOT NULL DEFAULT 'DATABASE'
-                     COMMENT 'DATABASE 成分数据库 / GUIDELINE 膳食指南 / PAPER 文献 / OFFICIAL 官方文件 / DEMO 演示数据',
+                     COMMENT 'OFFICIAL 国家级权威数据 / DATABASE 成分数据库 / GUIDELINE 膳食指南 / LITERATURE 学术文献 / STANDARD 行业标准 / COMMERCIAL 商业资料 / OTHER 其他 / DEMO 演示数据 / CUSTOM 用户自建（见 docs/data-source-policy.md 1.3）',
   `publisher`        VARCHAR(255)     NULL COMMENT '发布机构',
   `version`          VARCHAR(64)      NULL COMMENT '版本/版次',
   `publish_date`     DATE             NULL COMMENT '发布日期（PRD 5.10 要求记录发布日期或版本）',
   `url`              VARCHAR(512)     NULL COMMENT '可核查来源地址',
   `applicable_scope` VARCHAR(512)     NULL COMMENT '适用范围（PRD 8.2：必须注明适用条件）',
-  `note`             VARCHAR(512)     NULL,
+  `note`             VARCHAR(512)     NULL COMMENT 'A 级来源须在此说明 data-source-policy.md 1.4 五条判据的满足情况',
   `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_source_code` (`code`)
+  UNIQUE KEY `uk_source_code` (`code`),
+  -- [D4] 取值域与 docs/data-source-policy.md 1.3 分级表逐字一致；由 DB 强制，避免写入未分级取值
+  CONSTRAINT `ck_source_type` CHECK (`source_type` IN
+    ('OFFICIAL','DATABASE','GUIDELINE','LITERATURE','STANDARD','COMMERCIAL','OTHER','DEMO','CUSTOM'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据来源 [D4]：营养数据可追溯率 100% 的基础';
 
 -- [D2][D3][D4] 营养数值：三列表达缺失/零/有值，单位来自字典，来源非空
@@ -323,9 +355,11 @@ CREATE TABLE `nutrition_value` (
   `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at`     DATETIME          NULL,
+  `gd_deleted_key` DATETIME GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+                   COMMENT '[D8] 唯一键代理列',
   PRIMARY KEY (`id`),
   -- 同一形态同一营养素同一口径只允许一条有效记录，避免汇总时重复计算
-  UNIQUE KEY `uk_nv_variant_nutrient` (`variant_id`, `nutrient_id`, `reference_amount`, `reference_unit`, `deleted_at`),
+  UNIQUE KEY `uk_nv_variant_nutrient` (`variant_id`, `nutrient_id`, `reference_amount`, `reference_unit`, `deleted_at`, `gd_deleted_key`),
   KEY `idx_nv_variant` (`variant_id`),
   KEY `idx_nv_nutrient` (`nutrient_id`),
   KEY `idx_nv_source`   (`source_id`),
@@ -480,9 +514,11 @@ CREATE TABLE `user_favorite` (
   `food_id`    BIGINT   NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` DATETIME     NULL,
+  `gd_deleted_key` DATETIME GENERATED ALWAYS AS (IFNULL(`deleted_at`, '1970-01-01 00:00:00')) VIRTUAL
+                   COMMENT '[D8] 唯一键代理列',
   PRIMARY KEY (`id`),
   -- 含 deleted_at：允许取消收藏后重新收藏
-  UNIQUE KEY `uk_fav_user_food` (`user_id`, `food_id`, `deleted_at`),
+  UNIQUE KEY `uk_fav_user_food` (`user_id`, `food_id`, `deleted_at`, `gd_deleted_key`),
   KEY `idx_fav_user` (`user_id`, `created_at`),
   CONSTRAINT `fk_fav_user` FOREIGN KEY (`user_id`) REFERENCES `sys_user` (`id`),
   CONSTRAINT `fk_fav_food` FOREIGN KEY (`food_id`) REFERENCES `food` (`id`)

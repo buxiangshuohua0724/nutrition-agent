@@ -50,7 +50,8 @@ flowchart LR
 ### 1.3 来源分级（A / B / C 三级 + 专用级）
 
 ⚠️ **本文档的分级不是 schema 中的新列**，而是**对 `data_source.source_type` 已有取值的业务解释与准入约束**。
-`schema.sql` 的表结构已冻结，本节不新增字段（该限制已记入 `⚠️ 待确认` T-25）。
+本节不新增字段（该限制已记入 `⚠️ 待确认` T-25）。**下表的取值域与 `docs/db/schema.sql` 的 `data_source.source_type`
+逐字一致**，并由 schema 的 `ck_source_type` CHECK 强制（T-27 已因此关闭，见第十节）。
 
 | 级别 | 名称 | 对应 `source_type` 取值 | 典型示例 | 可用于营养数值 | 可用于知识引用 | 可用于对外发布 |
 | --- | --- | --- | --- | :---: | :---: | :---: |
@@ -66,9 +67,9 @@ flowchart LR
 > 与"食物成分表"的**代表性均值**不是同一概念。用单篇文献的数值充当某食品的通用营养值，会引入不可控偏差。
 > 因此 B 级数值的定位是"**补充说明**"（如说明某成分的变异范围），而非"**事实基线**"。
 >
-> **`source_type` 的最终取值域以 `docs/db/schema.sql` 的 `data_source` 表定义为准**。本表列出的是本文档
-> 给出的**建议分级映射**；若 schema 中某个 `source_type` 取值未出现在上表，**默认按 C 级处理**（保守原则：
-> 未分类的一律不给最高权限）。
+> **取值域的唯一权威是 `docs/db/schema.sql` 的 `data_source.source_type`**（`VARCHAR(24) NOT NULL DEFAULT 'DATABASE'`
+> + `ck_source_type` CHECK）。上表与它逐字对应，**没有"表里有、库里没有"的取值**；
+> 若将来 schema 新增取值而本表未同步，**默认按 C 级处理**（保守原则：未分类的一律不给最高权限）。
 
 ### 1.4 A 级来源的准入判据（五条全过才算 A 级）
 
@@ -81,7 +82,7 @@ flowchart LR
 | 5 | 有**明确的适用人群与地域**（`applicable_scope`） | "通用值" |
 
 > 五条中任一条不满足 → 降为 B 级；再缺两条以上 → 降为 C 级。
-> 内容管理员在录入 `data_source` 时，**必须在 `remark` 中逐条说明五条判据的满足情况**（见 2.2）。
+> 内容管理员在录入 `data_source` 时，**必须在 `note` 中逐条说明五条判据的满足情况**（见 2.2）。
 
 ---
 
@@ -99,14 +100,14 @@ flowchart LR
 | `publish_date` | ✅ | 精确到日 | 只写年份 |
 | `url` | ❌（A 级建议必填） | 官方可访问地址；无公开 URL 时填 ISBN / 标准号 | 填二手转载页 |
 | `applicable_scope` | ✅ | 人群 + 地域 + 状态，如"中国居民一般人群，成人" | 留空；写"全体" |
-| `remark` | ✅（A 级） | A 级来源须写明 1.4 节五条判据的满足情况；其他写明限制条件 | 写"来源可靠" |
+| `note` | ✅（A 级） | A 级来源须写明 1.4 节五条判据的满足情况；其他写明限制条件 | 写"来源可靠" |
 
 ### 2.2 录入示例（可直接作为种子数据的参照格式）
 
 ```sql
 -- 示例 1：A 级 — 国家级食物成分数据（正式对外数据必须来自此类来源）
 INSERT INTO data_source (code, name, source_type, publisher, version, publish_date,
-                         url, applicable_scope, remark)
+                         url, applicable_scope, note)
 VALUES ('CN_FOOD_COMPOSITION_6', '中国食物成分表（标准版 第6版）', 'OFFICIAL',
         '中国疾病预防控制中心营养与健康所', '第6版 / 2018', '2018-09-01',
         NULL, '中国居民一般人群，成人',
@@ -114,7 +115,7 @@ VALUES ('CN_FOOD_COMPOSITION_6', '中国食物成分表（标准版 第6版）',
 
 -- 示例 2：A 级 — 膳食指南（用于摄入参考与知识库）
 INSERT INTO data_source (code, name, source_type, publisher, version, publish_date,
-                         url, applicable_scope, remark)
+                         url, applicable_scope, note)
 VALUES ('CN_DIETARY_GUIDELINE_2022', '《中国居民膳食指南（2022）》', 'GUIDELINE',
         '中国营养学会', '2022版', '2022-04-26',
         NULL, '中国居民一般人群',
@@ -122,7 +123,7 @@ VALUES ('CN_DIETARY_GUIDELINE_2022', '《中国居民膳食指南（2022）》',
 
 -- 示例 3：B 级 — 学术文献（仅作补充说明，须设复核期限）
 INSERT INTO data_source (code, name, source_type, publisher, version, publish_date,
-                         url, applicable_scope, remark)
+                         url, applicable_scope, note)
 VALUES ('LIT_FIBER_META_2019', '膳食纤维摄入与代谢指标的系统综述', 'LITERATURE',
         '某营养学期刊', 'Vol.XX No.X', '2019-06-15',
         NULL, '成人一般人群（研究纳入人群）',
@@ -130,7 +131,7 @@ VALUES ('LIT_FIBER_META_2019', '膳食纤维摄入与代谢指标的系统综述
 
 -- 示例 4：演示数据（严禁对外发布）
 INSERT INTO data_source (code, name, source_type, publisher, version, publish_date,
-                         url, applicable_scope, remark)
+                         url, applicable_scope, note)
 VALUES ('DEMO_DATASET', '演示数据集（不可用于对外发布）', 'DEMO',
         '项目自建', 'v1', '2026-10-01',
         NULL, '仅用于开发与自动化测试，无适用人群',
@@ -151,12 +152,12 @@ VALUES ('DEMO_DATASET', '演示数据集（不可用于对外发布）', 'DEMO',
 | # | 规范 | 落点 | 依据 |
 | --- | --- | --- | --- |
 | N1 | `source_id` **必须非空** | `nutrition_value.source_id` NOT NULL + 外键 | schema.sql:316；`README.md` 工程约束 5 |
-| N2 | 每个来源必须能区分 **`unit` / `reference_amount` / `reference_unit`** | `nutrition_value` 三列均 NOT NULL | PRD 11.1（单位、参考重量、食品状态、来源四项缺一不可） |
+| N2 | 每个来源必须能区分 **`unit` / `reference_amount` / `reference_unit`** | 单位落 `nutrient.unit`（NOT NULL，[D3]）；参考重量落 `nutrition_value.reference_amount` / `reference_unit`（均 NOT NULL） | PRD 11.1（单位、参考重量、食品状态、来源四项缺一不可） |
 | N3 | 必须绑定**具体食品形态** `variant_id` | `nutrition_value.variant_id` NOT NULL | schema.sql:308-312（`[D1]`：营养数据无法脱离形态存在） |
 | N4 | `value_status` 三态语义必须正确 | `value_status` + `ck_nv_status_amount` CHECK | schema.sql:314-337 |
 | N5 | 审核后方可发布 | `review_status`、`reviewed_by`、`reviewed_at` | schema.sql:318-322 |
 | N6 | 仅 A 级来源可用于**正式对外发布** | 服务层 + 发布门禁（本文档第 5 节 LG-02） | PRD 12.3 |
-| N7 | 原始资料单位与库内标准单位不同时，必须**记录换算过程** | `remark` 或 `admin_audit_log.before_json/after_json` | 本规范（防"数值被谁改过说不清"） |
+| N7 | 原始资料单位与库内标准单位不同时，必须**记录换算过程** | `nutrition_value.source_detail`（口径/页码定位）+ `admin_audit_log.before_json/after_json` | 本规范（防"数值被谁改过说不清"） |
 
 #### `value_status` 三态的录入判定标准（必须严格执行）
 
@@ -169,7 +170,8 @@ VALUES ('DEMO_DATASET', '演示数据集（不可用于对外发布）', 'DEMO',
 > **三态是防幻觉的地基**（`README.md` 工程约束 3/4）。判定顺序固定为：
 > **来源明确写了数值 → `PRESENT`；来源明确写 0/未检出 → `ZERO`；来源没提 → `MISSING`。**
 > "未检出（ND）"归入 `ZERO` 的前提是来源**同时说明了检出限**；若只说"未检出"而无检出限，
-> 应归入 `MISSING` 并在 `remark` 中说明原因——因为"低于检出限"不等于"含量为零"。
+> 应归入 `MISSING` 并在 `source_detail` 中说明原因（`nutrition_value` 没有独立的备注列）
+> ——因为"低于检出限"不等于"含量为零"。
 
 #### 单位规范（配合 `nutrient` 字典表）
 
@@ -178,7 +180,7 @@ VALUES ('DEMO_DATASET', '演示数据集（不可用于对外发布）', 'DEMO',
 | 规范 | 说明 |
 | --- | --- |
 | N8 | 录入的 `unit` 必须与 `nutrient.unit`（该营养素的标准单位）一致，**不得**在同一条记录中自定义单位（如把 `kcal` 写成 `千卡`） |
-| N9 | 来源资料单位与库内 `unit` 不一致时，**换算后录入**，并在 `remark` 写明原始值与换算系数（如"原始资料以 kJ 给出，数值 = 原值 ÷ 4.184"） |
+| N9 | 来源资料单位与库内 `unit` 不一致时，**换算后录入**，并在 `source_detail` 写明原始值与换算系数（如"原始资料以 kJ 给出，数值 = 原值 ÷ 4.184"） |
 | N10 | 能量（`nutrient.is_energy = true`）的换算**必须**记录，因为 kJ↔kcal 混淆会让数值相差 4.184 倍，是最危险的录入错误 |
 | N11 | `unit` 写法统一为字典标准形式（如 `ug` 而非 `μg`，见 schema 的单位字典注释），避免同一单位多种写法导致分组统计错乱 |
 
@@ -187,8 +189,8 @@ VALUES ('DEMO_DATASET', '演示数据集（不可用于对外发布）', 'DEMO',
 | 规范 | 说明 |
 | --- | --- |
 | N12 | `reference_amount` + `reference_unit` 必须**显式写入**，不允许依赖"默认 100g"的隐含约定 |
-| N13 | 若来源给的是"每 100g 可食部"，则 `reference_amount = 100`、`reference_unit = 'g'`，并在 `remark` 注明"可食部"；**是否可食部必须能从 `variant` 判定**（`food_state_variant.state` / `edible_ratio`） |
-| N14 | 若来源给出的是"每份""每个"等非重量口径，**必须**换算为可食部重量后录入，并在 `remark` 保留原始口径与换算依据；**无法可靠换算的，不得录入**（`MISSING` 优先于猜测） |
+| N13 | 若来源给的是"每 100g 可食部"，则 `reference_amount = 100`、`reference_unit = 'g'`，并在 `reference_note` 注明"可食部"；**是否可食部必须能从 `variant` 判定**（`food_state_variant.state` / `edible_ratio`） |
+| N14 | 若来源给出的是"每份""每个"等非重量口径，**必须**换算为可食部重量后录入，并在 `source_detail` + `reference_note` 保留原始口径与换算依据；**无法可靠换算的，不得录入**（`MISSING` 优先于猜测） |
 
 ### 3.2 食品基础信息（`food` 表）
 
@@ -216,7 +218,7 @@ VALUES ('DEMO_DATASET', '演示数据集（不可用于对外发布）', 'DEMO',
 
 > **设计取舍说明**：`suitable_for` / `cautions` 是**风险最高的两个字段**——它们最容易被写成医学建议。
 > 这两个字段的内容必须经过**知识库同源审核**：若某条注意事项是引用知识库得出的，
-> 应在 `remarks` 或审计日志中记录引用的 `knowledge_doc.id`，以便追溯。
+> 应在 `admin_audit_log` 中记录引用的 `knowledge_doc.id`，以便追溯。
 > 该"逐字段来源"需求在当前 schema 下**无字段落点**，已记入 `⚠️ 待确认` T-23。
 
 ### 3.3 食品图片（`food_image` 表）
@@ -356,10 +358,10 @@ PRD 要求"内容管理员与系统管理员初期可为同一人，但权限必
 | LG-01 | `nutrition_value.source_id` 非空且指向存在的 `data_source` | ✅ DB（NOT NULL + 外键） | schema.sql |
 | LG-02 | 对外发布的数据只能引用 **A 级**来源 | 服务层 + 人审 | PRD 12.3 |
 | LG-03 | `value_status` 与 `amount` 必须满足 CHECK 约束（`ZERO`→0，`MISSING`→NULL，`PRESENT`→有值） | ✅ DB（CHECK） | schema.sql:314-337 |
-| LG-04 | `unit`、`reference_amount`、`reference_unit` 非空且单位与 `nutrient` 字典一致 | ✅ DB（NOT NULL）+ 服务层校验 | PRD 11.1 |
+| LG-04 | `reference_amount`、`reference_unit` 非空且为正；数值单位与 `nutrient` 字典一致 | 参考重量口径：✅ DB（NOT NULL）；单位一致性：服务层校验（`nutrition_value` **无 `unit` 列**，单位在 `nutrient.unit`，跨表一致性 DB 无法用 CHECK 表达） | PRD 11.1 / `[D3]` |
 | LG-05 | `variant_id` 非空（营养数据不能挂在"食品"这一层） | ✅ DB（NOT NULL） | schema.sql:308-312 |
 | LG-06 | 发布前必须 `review_status<>'PENDING'`，且 `reviewed_by` 非空 | 服务层 | schema.sql:318-322 |
-| LG-07 | 同一 `(variant_id, nutrient_id)` 不得重复 | 服务层 | `uk_variant_nutrient` |
+| LG-07 | 同一 `(variant_id, nutrient_id)` 不得重复 | ✅ DB（`uk_nv_variant_nutrient`，含 `deleted_at` 归一化生成列，见 `[D8]`） | schema.sql |
 
 ### 5.2 通用内容门禁
 
@@ -414,12 +416,20 @@ WHERE f.publish_status = 'PUBLISHED'
 ### 6.2 C-02：关键营养素的单位与参考重量完整性（必须 0 行）
 
 ```sql
--- 单位或参考重量缺失（应用层漏改时由 NOT NULL 兜底，此查询用于流程前的存量体检）
-SELECT nv.id, nv.variant_id, nv.nutrient_id
+-- 单位或参考重量口径不完整。
+-- 注意：nutrition_value 没有 unit 列，单位由 nutrient 字典提供（[D3]），故必须 JOIN nutrient 才查得到；
+-- reference_amount / reference_unit 在 nutrition_value 上是 NOT NULL DEFAULT 100 / 'g'，
+-- 因此这里额外卡「非正数」与「能量用了非能量单位」两类语义缺陷。
+SELECT nv.id, nv.variant_id, nv.nutrient_id, n.unit
 FROM nutrition_value nv
-WHERE nv.unit IS NULL
+JOIN nutrient n ON n.id = nv.nutrient_id
+WHERE n.unit IS NULL
+   OR TRIM(n.unit) = ''
    OR nv.reference_amount IS NULL
-   OR nv.reference_unit IS NULL;
+   OR nv.reference_amount <= 0
+   OR nv.reference_unit IS NULL
+   OR TRIM(nv.reference_unit) = ''
+   OR (n.is_energy = 1 AND n.unit NOT IN ('kcal', 'kJ'));
 ```
 
 ### 6.3 C-03：三态一致性（必须 0 行）
@@ -433,14 +443,15 @@ WHERE (nv.value_status = 'MISSING' AND nv.amount IS NOT NULL)
    OR (nv.value_status = 'PRESENT' AND nv.amount IS NULL);
 ```
 
-> 该查询与 `ck_nv_status_amount` CHECK 约束互为验证：**若 DB 约束生效，此查询永不为空；
-> 若查出结果，说明环境上的 schema 版本落后或约束被绕过**——这本身就是有价值的告警。
+> 该查询与 `ck_nv_status_amount` CHECK 约束互为验证：**若 DB 约束生效，此查询永不返回行**；
+> 若查出结果，说明环境上的 schema 版本落后或约束被绕过——这本身就是有价值的告警。
 
 ### 6.4 C-04：知识来源合规性（必须 0 行）
 
 ```sql
 -- 已发布知识文档引用了不合规来源或缺少复核期限
-SELECT kd.id, kd.code, kd.category, ds.source_type, kd.valid_until
+-- 注意：knowledge_doc 没有 code 列，文档标识即 id + title（引用标识 KDOC_<id>#chunk<n>）
+SELECT kd.id, kd.title, kd.category, ds.source_type, kd.valid_until
 FROM knowledge_doc kd
 LEFT JOIN data_source ds ON ds.id = kd.source_id
 WHERE kd.publish_status = 'PUBLISHED'
@@ -458,7 +469,7 @@ WHERE kd.publish_status = 'PUBLISHED'
 
 ```sql
 -- 已过期但仍处于发布状态的知识文档（检索时会过滤，但状态未同步属流程缺陷）
-SELECT kd.id, kd.code, kd.valid_until
+SELECT kd.id, kd.title, kd.valid_until
 FROM knowledge_doc kd
 WHERE kd.publish_status = 'PUBLISHED'
   AND kd.deleted_at IS NULL
@@ -513,7 +524,7 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | 2 | 该 `data_source` 的 `publisher` / `version` / `applicable_scope` 是否齐全？ | 人工抽查 + 2.1 必填表 |
 | 3 | 该数值属于哪个食品的哪个形态？ | `nutrition_value.variant_id` → `food_state_variant` → `food` |
 | 4 | 该条数值是谁录入、谁审核、何时？ | `created_by` / `reviewed_by` / `reviewed_at` |
-| 5 | 若来源资料口径与库内不同，换算过程在哪？ | `remark` 或 `admin_audit_log.before_json/after_json` |
+| 5 | 若来源资料口径与库内不同，换算过程在哪？ | `nutrition_value.source_detail` / `reference_note` 或 `admin_audit_log.before_json/after_json` |
 | 6 | AI 回答引用的来源，是否真实存在？ | `docs/agent-design.md` FV-05S / FV-11 校验 + `chunkRef` 规则（3.5） |
 | 7 | 知识结论能否定位到具体 chunk？ | `KDOC_<docId>#chunk<chunkIndex>` |
 | 8 | 图片能否说明授权来源？ | C-06 + `license_note` |
@@ -582,7 +593,7 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | L5 | 数据删除权 | 支持删除用户个人数据 | `docs/api-contract.md` 用户数据删除接口 |
 | L6 | 医学边界 | 平台不提供诊断与治疗建议；知识库内容同样受此约束 | PRD 8.3、`docs/agent-design.md` 第 8 节 |
 | L7 | 免责声明 | 前端必须展示"本平台提供一般性营养信息，不构成医疗建议" | PRD 8.3 |
-| L8 | 许可范围标注 | 若来源许可仅限非商业用途，必须记录其限制 | `data_source.remark` |
+| L8 | 许可范围标注 | 若来源许可仅限非商业用途，必须记录其限制 | `data_source.note` |
 
 ---
 
@@ -654,9 +665,9 @@ HAVING variant_with_data = 0 OR variant_with_data < variant_count;
 | **T-24** | **来源分级的颗粒度与发布门禁冲突。** `nutrition_value` 有 `publish_status` 吗？没有——发布状态是**食品级**的（`food.publish_status`）。因此同一 `variant` 下若部分营养素来自 A 级、部分来自 `DEMO`，**无法只对用户隐藏后者**。 | `docs/db/schema.sql`（`nutrition_value` 与 `food` 的表级状态） | 过渡期存在"演示数值随已发布食品一起对外可见"的风险，直接违反 `README.md` 的演示数据禁令。C-01 只能**发现**，不能**阻止** | 过渡期硬性要求：禁止把演示数据挂在 `PUBLISHED` 食品上（本文档 7.2）；中长期建议为 `nutrition_value` 引入行级可见性（如 `is_publishable` 或在发布时物化快照） |
 | **T-25** | **来源分级（A/B/C）不是 schema 中的列。** `data_source` 只有 `source_type`，没有 `source_tier`。 | `docs/db/schema.sql` 的 `data_source` 表 | 本文档第 1.3 节的分级是**对 `source_type` 的业务解释**，不是可直接查询的事实。LG-02（只能引用 A 级）无法用一条简单 SQL 表达，必须硬编码 `source_type` 白名单，未来扩展 `source_type` 时容易漏改 | 建议增加 `source_tier`（`A`/`B`/`C`）列，或把白名单集中到一个可配置常量类中并加单测。**本文档按"白名单硬编码 + C-01 校验"设计**，不改 schema |
 | **T-26** | **`chunkRef` 格式未作为正式约定写明。** 只在 `docs/api-contract.md` 的 `sources[].refId` 示例中出现过 `"KDOC_0007#chunk2"` 一个字符串。 | `docs/api-contract.md`（`sources` 字段示例） | 本文档 3.5 将其固化为 `KDOC_<docId 四位补零>#chunk<chunkIndex>`，作为"知识引用可定位"的校验依据。若非正式约定，S11 自检与 `docs/agent-design.md` FV-11 都会失效 | 在契约的 `sources` 或知识检索条款中显式写明 `refId` 构造规则（与 T-12 为同一问题的两面） |
-| **T-27** | **`data_source.source_type` 的完整取值域未在契约中列出。** 本文档 1.3 使用了 `OFFICIAL`/`GUIDELINE`/`LITERATURE`/`DATABASE`/`STANDARD`/`COMMERCIAL`/`OTHER`/`DEMO`/`CUSTOM`，其中部分取值需以 schema 实际定义为准。 | `docs/db/schema.sql` 的 `data_source.source_type` | 若实际枚举少于本文档所列，1.3 的映射需收敛；**尤其需确认是否存在 `DEMO`**——它是全部演示数据隔离机制（C-01、D3、S6）的基础 | 以 schema 实际取值为准核对本表，并把该枚举同步到 `docs/api-contract.md`（后台数据源管理接口会用到） |
+| ~~**T-27**~~ | ~~**`data_source.source_type` 的完整取值域未在契约中列出。**~~ | ✅ **已关闭（2026-10 修订）** | 原影响：若实际枚举少于本文档所列，1.3 的映射需收敛 | **已解决**：`source_type` 的取值域现已由 `ck_source_type` CHECK 在 **MySQL 与 H2 两份 schema 上同时强制**，取值为 `OFFICIAL`/`DATABASE`/`GUIDELINE`/`LITERATURE`/`STANDARD`/`COMMERCIAL`/`OTHER`/`DEMO`/`CUSTOM`，与本文档 1.3 分级表**逐字一致**；该不变量由 `SchemaParityTest.sourceTypeDomainMatchesPolicy` 卡住（任一处漂移即红）。**遗留**：把该枚举同步到 `docs/api-contract.md` 的后台数据源管理接口，仍未做 |
 | **T-28** | **后台营养数据接口是否返回 `source_type` / 来源级别未约定。** | `docs/api-contract.md` 后台营养数据更新接口 | 本文档 7.3 要求后台界面能一眼区分"演示数据"，但若接口不返回 `source_type`，前端无法展示红色警示标签 | 建议后台查询接口返回 `source` 对象（含 `code`、`name`、`source_type`、`version`）；前台公开接口是否返回来源由 PRD 11.1 决定 |
-| **T-29** | **`data_source.code` 的唯一性约束需确认。** 本文档 2.1 要求"`code` 稳定唯一、一经使用不得改名"，并以 `DEMO_DATASET`、`CN_DIETARY_GUIDELINE_2022` 等作为稳定引用键。 | `docs/db/schema.sql` 的 `data_source` 表 | 若 `code` 无唯一索引，"稳定引用键"的要求无法由数据库保证，同 code 重复插入会导致来源统计与 C-01 结果失真 | 确认 `data_source.code` 上有唯一约束（如 `uk_ds_code`）；若无，建议补上（属 schema 变更，需决策） |
+| **T-29** | ~~**`data_source.code` 的唯一性约束需确认。**~~ | ✅ **已核实（2026-10 修订）** | 本文档 2.1 要求"`code` 稳定唯一、一经使用不得改名"，并以 `DEMO-SEED`、`CN-DIETARY-GUIDE-2022` 等作为稳定引用键 | **已确认存在**：两份 schema 都有 `uk_source_code (code)`，`code` 另有 `NOT NULL`。该键**不含** `deleted_at`，因为 `data_source` 没有逻辑删除列（来源不允许被删除，只能停用），故此表不受 `[D8]` 影响 |
 | **T-30** | **`admin_audit_log` 的 `before_json`/`after_json` 是否覆盖数值型字段的完整快照未约定。** 本文档 N7 / 9.3 依赖它记录单位换算与数值迁移过程。 | `docs/db/schema.sql` 的 `admin_audit_log` 表 | 若审计只记"哪个对象被改"而不记字段级前后值，9.3 的"版本升级留痕"与 N7 的"换算过程可追溯"都落不了地 | 明确审计的中粒度（对象级 vs 字段级），并在验收中抽查一条真实的数值修改记录 |
 | **T-31** | **`knowledge_doc.valid_until` 是否有默认值与强制规则未约定。** 本文档 K3 / LG-11 要求指南类知识必须有复核期限。 | `docs/db/schema.sql` 的 `knowledge_doc` 表 | 若字段可空且无服务层强制，"过期知识自动退出检索"（LG-12）只对设置了期限的文档有效，未设置期限的会长久存活 | 建议：`GUIDELINE` / `LITERATURE` 类在提交审核时强制要求 `valid_until`（服务层校验 + 单测） |
 | **T-32** | **图片魔数校验规则未在契约中明确。** PRD 8.4 与契约均要求"校验文件头魔数"，但未约定允许的魔数清单与拒绝行为。 | `docs/api-contract.md` 图片上传条款 | 本文档 I7 依赖该校验作为图片合规的第一道关口 | 明确允许的魔数（JPEG `FF D8 FF`、PNG `89 50 4E 47`、WebP `RIFF....WEBP`）与失败错误码（`41501`） |

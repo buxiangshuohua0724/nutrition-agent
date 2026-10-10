@@ -49,6 +49,10 @@ class SchemaParityTest {
     private static final Path H2_SCHEMA =
             PROJECT_ROOT.resolve("backend/src/main/resources/db/h2/schema.sql");
 
+    /** 来源分级与取值域的权威业务文档（1.3 节的分级表）。 */
+    private static final Path DATA_SOURCE_POLICY =
+            PROJECT_ROOT.resolve("docs/data-source-policy.md");
+
     /** 匹配 `CREATE TABLE [IF NOT EXISTS] `name` (` ... `) ENGINE=...;` */
     private static final Pattern CREATE_TABLE = Pattern.compile(
             "CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?`?([A-Za-z0-9_]+)`?\\s*\\((.*?)\\)\\s*(?:ENGINE|COMMENT|;)",
@@ -94,6 +98,51 @@ class SchemaParityTest {
 
     /** 列定义行的第一个 token 就是列名。 */
     private static final Pattern COLUMN_NAME = Pattern.compile("^`?([A-Za-z0-9_]+)`?\\s+");
+
+    /**
+     * MySQL 行内唯一键：{@code UNIQUE KEY `uk_x` (col, col)}。
+     */
+    private static final Pattern MYSQL_UNIQUE_KEY = Pattern.compile(
+            "UNIQUE\\s+KEY\\s+`?((?:uk_)[A-Za-z0-9_]*)`?\\s*\\(([^)]*)\\)",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * H2 / MySQL 命名唯一约束：{@code CONSTRAINT `uk_x` UNIQUE (col, col)}。
+     */
+    private static final Pattern NAMED_UNIQUE_CONSTRAINT = Pattern.compile(
+            "CONSTRAINT\\s+`?((?:uk_)[A-Za-z0-9_]*)`?\\s+UNIQUE\\s*\\(([^)]*)\\)",
+            Pattern.CASE_INSENSITIVE);
+
+    /** [D8] 唯一键里那个把 NULL 归一化的生成列。 */
+    private static final String NULL_SAFE_KEY_COLUMN = "gd_deleted_key";
+
+    /** 未删除时 deleted_at 为 NULL，而 NULL 不参与唯一性比较，故这些键必须带生成列。 */
+    private static final String LOGIC_DELETE_COLUMN = "deleted_at";
+
+    /** `ck_source_type` 的取值清单：抓 `IN ( '...', '...' )` 里的单引号串。 */
+    private static final Pattern SOURCE_TYPE_CHECK = Pattern.compile(
+            "ck_source_type`?\\s*CHECK\\s*\\(\\s*`?source_type`?\\s+IN\\s*\\(([^)]*)\\)",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    /** 从上面抓出的取值清单里提取每个单引号串。 */
+    private static final Pattern QUOTED_VALUE = Pattern.compile("'([^']+)'");
+
+    /**
+     * 政策文档 1.3 分级表里那一列 `source_type` 取值的单元格，例如
+     * {@code | \`OFFICIAL\`、\`DATABASE\` |} 或 {@code | \`DEMO\` |}。
+     */
+    private static final Pattern POLICY_TIER_CELL = Pattern.compile(
+            "\\|\\s*`[A-Z_]+`(?:\\s*[、,／/]\\s*`[A-Z_]+`)*\\s*\\|");
+
+    /** 1.3 分级表的小节起点。 */
+    private static final Pattern POLICY_TIER_HEADING = Pattern.compile("(?m)^###\\s+1\\.3\\s+.*$");
+
+    /**
+     * 下一个同级或更高级标题：用于把 1.3 小节切出来。
+     * <p>必须切小节——文档别处（如 3.1 的三态判定表）也有 {@code | \`PRESENT\` |} 这种单元格，
+     * 不切就会把它们混进取值域，检查随即失效。
+     */
+    private static final Pattern SECTION_BOUNDARY = Pattern.compile("(?m)^#{2,4}\\s+");
 
     @Test
     @DisplayName("两份 schema.sql 的表集合必须完全一致")
@@ -200,7 +249,115 @@ class SchemaParityTest {
                 .contains("ck_nv_status_amount");
     }
 
+    @Test
+    @DisplayName("[D8] 带 deleted_at 的唯一键必须同时带 NULL 归一化生成列 gd_deleted_key，否则唯一性形同虚设")
+    void logicDeleteUniqueKeysAreNullSafe() {
+        Map<String, Set<String>> mysql = parseUniqueKeys(stripComments(read(MYSQL_SCHEMA)));
+        Map<String, Set<String>> h2 = parseUniqueKeys(stripComments(read(H2_SCHEMA)));
+
+        assertThat(mysql.isEmpty())
+                .as("MySQL 版没解析出任何唯一键，说明 UNIQUE KEY 的写法变了，本测试的正则已失效")
+                .isFalse();
+        assertThat(h2.keySet())
+                .as("唯一键名在两份 schema 之间漂移（列清单比对需要同名键）")
+                .isEqualTo(mysql.keySet());
+
+        Set<String> offending = new TreeSet<>();
+        int nullSafeCount = 0;
+        for (Map.Entry<String, Set<String>> entry : mysql.entrySet()) {
+            Set<String> columns = entry.getValue();
+            if (!columns.contains(LOGIC_DELETE_COLUMN)) {
+                continue;
+            }
+            if (columns.contains(NULL_SAFE_KEY_COLUMN)) {
+                nullSafeCount++;
+            } else {
+                offending.add(entry.getKey());
+            }
+        }
+
+        assertThat(offending)
+                .as("下列唯一键含 deleted_at 却没有 " + NULL_SAFE_KEY_COLUMN + "："
+                        + "唯一索引里 NULL 与 NULL 互不相等，未删除行将完全不受唯一性约束，"
+                        + "可以插入任意多条重复记录（见 schema.sql 的 [D8]）")
+                .isEmpty();
+
+        assertThat(nullSafeCount)
+                .as("已加固 NULL 语义的唯一键数量变了：新增或删除带 deleted_at 的唯一键时，"
+                        + "必须同步在两张表里补/删 gd_deleted_key 生成列并更新此期望值")
+                .isEqualTo(8);
+    }
+
+    @Test
+    @DisplayName("[D4] source_type 的取值域必须在两份 schema 与 data-source-policy.md 1.3 分级表三处一致")
+    void sourceTypeDomainMatchesPolicy() {
+        Set<String> mysql = parseSourceTypeCheck(read(MYSQL_SCHEMA));
+        Set<String> h2 = parseSourceTypeCheck(read(H2_SCHEMA));
+
+        assertThat(mysql)
+                .as("MySQL 版没解析出 ck_source_type 的取值清单，说明该 CHECK 的写法变了，本测试的正则已失效")
+                .isNotEmpty();
+        assertThat(h2)
+                .as("H2 版的 ck_source_type 取值域与 MySQL 权威定义不一致："
+                        + "dev 能写入的取值会与生产不同，属最难发现的漂移")
+                .isEqualTo(mysql);
+
+        Set<String> policy = parsePolicyTierValues(read(DATA_SOURCE_POLICY));
+        assertThat(policy)
+                .as("没从 data-source-policy.md 1.3 的分级表解析出任何取值，正则可能已失效")
+                .isNotEmpty();
+        assertThat(policy)
+                .as("data-source-policy.md 1.3 分级表与 schema 的 source_type 取值域不一致："
+                        + "分级表多出的取值写不进库（门禁判据失效），"
+                        + "schema 多出的取值在文档里没有级别定义（会被当成未分级来源放行）")
+                .isEqualTo(mysql);
+    }
+
     // ------------------------------------------------------------------ 解析
+
+    /**
+     * 解析 {@code ck_source_type} 的取值清单。
+     * @param sql 建表脚本全文
+     * @return 取值集合（大写）
+     */
+    private static Set<String> parseSourceTypeCheck(String sql) {
+        Matcher matcher = SOURCE_TYPE_CHECK.matcher(stripComments(sql));
+        if (!matcher.find()) {
+            return new TreeSet<>();
+        }
+        Set<String> values = new TreeSet<>();
+        Matcher quoted = QUOTED_VALUE.matcher(matcher.group(1));
+        while (quoted.find()) {
+            values.add(quoted.group(1).toUpperCase());
+        }
+        return values;
+    }
+
+    /**
+     * 解析 data-source-policy.md 1.3 分级表里那一列 `source_type` 取值。
+     * @param markdown 政策文档全文
+     * @return 取值集合（大写）
+     */
+    private static Set<String> parsePolicyTierValues(String markdown) {
+        Matcher heading = POLICY_TIER_HEADING.matcher(markdown);
+        if (!heading.find()) {
+            return new TreeSet<>();
+        }
+        Matcher boundary = SECTION_BOUNDARY.matcher(markdown);
+        String section = boundary.find(heading.end())
+                ? markdown.substring(heading.start(), boundary.start())
+                : markdown.substring(heading.start());
+
+        Set<String> values = new TreeSet<>();
+        Matcher cell = POLICY_TIER_CELL.matcher(section);
+        while (cell.find()) {
+            Matcher quoted = QUOTED_VALUE.matcher(cell.group().replace('`', '\''));
+            while (quoted.find()) {
+                values.add(quoted.group(1).toUpperCase());
+            }
+        }
+        return values;
+    }
 
     /**
      * 解析出「表名 → 列名集合」。
@@ -231,6 +388,33 @@ class SchemaParityTest {
             tables.put(table, columns);
         }
         return tables;
+    }
+
+    /**
+     * 解析出「唯一键名 → 列名集合」。
+     *
+     * <p>两种写法都要认：MySQL 的行内 {@code UNIQUE KEY `uk_x` (...)} 与
+     * H2/MySQL 的 {@code CONSTRAINT `uk_x` UNIQUE (...)}。二者在项目里各自使用，
+     * 所以解析时合并两遍。
+     * @param sql 已剥注释的建表脚本
+     * @return 唯一键名到列名集合的映射（键名小写）
+     */
+    private static Map<String, Set<String>> parseUniqueKeys(String sql) {
+        Map<String, Set<String>> keys = new LinkedHashMap<>();
+        for (Pattern pattern : new Pattern[]{MYSQL_UNIQUE_KEY, NAMED_UNIQUE_CONSTRAINT}) {
+            Matcher matcher = pattern.matcher(sql);
+            while (matcher.find()) {
+                Set<String> columns = new LinkedHashSet<>();
+                for (String raw : matcher.group(2).split(",")) {
+                    String column = raw.trim().replace("`", "").toLowerCase();
+                    if (!column.isEmpty()) {
+                        columns.add(column);
+                    }
+                }
+                keys.put(matcher.group(1).toLowerCase(), columns);
+            }
+        }
+        return keys;
     }
 
     /**

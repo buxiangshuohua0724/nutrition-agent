@@ -62,6 +62,13 @@ backend/data/
 # ===== 脚本备份文件 =====
 *.bak
 
+# ===== Python（scripts/ 下的校验与生成脚本）=====
+# gen_demo_dataset.py / check_contract.py 会 import 同目录模块，
+# Python 自动生成 __pycache__/*.pyc；它们是纯字节码缓存，绝不入库。
+__pycache__/
+*.pyc
+*.pyo
+
 # ===== 环境变量与密钥（绝不入库）=====
 .env
 .env.local

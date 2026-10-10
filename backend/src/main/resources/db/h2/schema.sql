@@ -56,9 +56,10 @@ CREATE TABLE `sys_user` (
   `created_at`    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at`    TIMESTAMP        NULL,
+  `gd_deleted_key` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')),
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_user_username` UNIQUE (`username`, `deleted_at`),
-  CONSTRAINT `uk_user_email`    UNIQUE (`email`,    `deleted_at`)
+  CONSTRAINT `uk_user_username` UNIQUE (`username`, `deleted_at`, `gd_deleted_key`),
+  CONSTRAINT `uk_user_email`    UNIQUE (`email`,    `deleted_at`, `gd_deleted_key`)
 );
 
 CREATE TABLE `sys_role` (
@@ -129,8 +130,9 @@ CREATE TABLE `food_category` (
   `created_at` TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` TIMESTAMP        NULL,
+  `gd_deleted_key` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')),
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_category_slug`  UNIQUE (`slug`, `deleted_at`),
+  CONSTRAINT `uk_category_slug`  UNIQUE (`slug`, `deleted_at`, `gd_deleted_key`),
   CONSTRAINT `fk_category_parent` FOREIGN KEY (`parent_id`) REFERENCES `food_category` (`id`)
 );
 CREATE INDEX `idx_category_parent` ON `food_category` (`parent_id`);
@@ -159,8 +161,9 @@ CREATE TABLE `food` (
   `created_at`      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at`      TIMESTAMP        NULL,
+  `gd_deleted_key` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')),
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_food_code`      UNIQUE (`code`, `deleted_at`),
+  CONSTRAINT `uk_food_code`      UNIQUE (`code`, `deleted_at`, `gd_deleted_key`),
   CONSTRAINT `fk_food_category`  FOREIGN KEY (`category_id`) REFERENCES `food_category` (`id`)
 );
 CREATE INDEX `idx_food_name`     ON `food` (`name`);
@@ -175,8 +178,9 @@ CREATE TABLE `food_alias` (
   `weight`     INT          NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` TIMESTAMP        NULL,
+  `gd_deleted_key` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')),
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_alias_food` UNIQUE (`food_id`, `alias`, `deleted_at`),
+  CONSTRAINT `uk_alias_food` UNIQUE (`food_id`, `alias`, `deleted_at`, `gd_deleted_key`),
   CONSTRAINT `fk_alias_food` FOREIGN KEY (`food_id`) REFERENCES `food` (`id`)
 );
 CREATE INDEX `idx_alias_alias` ON `food_alias` (`alias`);
@@ -196,8 +200,9 @@ CREATE TABLE `food_state_variant` (
   `created_at`     TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`     TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at`     TIMESTAMP       NULL,
+  `gd_deleted_key` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')),
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_variant_food_state` UNIQUE (`food_id`, `state`, `cooking_method`, `deleted_at`),
+  CONSTRAINT `uk_variant_food_state` UNIQUE (`food_id`, `state`, `cooking_method`, `deleted_at`, `gd_deleted_key`),
   CONSTRAINT `fk_variant_food`       FOREIGN KEY (`food_id`) REFERENCES `food` (`id`)
 );
 CREATE INDEX `idx_variant_food`    ON `food_state_variant` (`food_id`);
@@ -264,7 +269,10 @@ CREATE TABLE `data_source` (
   `created_at`       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_source_code` UNIQUE (`code`)
+  CONSTRAINT `uk_source_code` UNIQUE (`code`),
+  -- [D4] 与 MySQL 侧 ck_source_type 同域；H2 2.x MODE=MySQL 支持 CHECK 子查询一致性由 SchemaParityTest 校验
+  CONSTRAINT `ck_source_type` CHECK (`source_type` IN
+    ('OFFICIAL','DATABASE','GUIDELINE','LITERATURE','STANDARD','COMMERCIAL','OTHER','DEMO','CUSTOM'))
 );
 
 -- [D2][D3][D4] 营养数值：三态 + 单位归一 + 来源必填
@@ -287,8 +295,9 @@ CREATE TABLE `nutrition_value` (
   `created_at`       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at`       TIMESTAMP         NULL,
+  `gd_deleted_key` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')),
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_nv_variant_nutrient` UNIQUE (`variant_id`, `nutrient_id`, `reference_amount`, `reference_unit`, `deleted_at`),
+  CONSTRAINT `uk_nv_variant_nutrient` UNIQUE (`variant_id`, `nutrient_id`, `reference_amount`, `reference_unit`, `deleted_at`, `gd_deleted_key`),
   -- 数据库层强制三列一致，防止应用层漏改导致「零值被当成缺失」或反之
   CONSTRAINT `ck_nv_status_amount` CHECK (
     (`value_status` = 'MISSING' AND `amount` IS NULL)
@@ -428,8 +437,9 @@ CREATE TABLE `user_favorite` (
   `food_id`    BIGINT    NOT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` TIMESTAMP     NULL,
+  `gd_deleted_key` TIMESTAMP AS (IFNULL(`deleted_at`, TIMESTAMP '1970-01-01 00:00:00')),
   PRIMARY KEY (`id`),
-  CONSTRAINT `uk_fav_user_food` UNIQUE (`user_id`, `food_id`, `deleted_at`),
+  CONSTRAINT `uk_fav_user_food` UNIQUE (`user_id`, `food_id`, `deleted_at`, `gd_deleted_key`),
   CONSTRAINT `fk_fav_user` FOREIGN KEY (`user_id`) REFERENCES `sys_user` (`id`),
   CONSTRAINT `fk_fav_food` FOREIGN KEY (`food_id`) REFERENCES `food` (`id`)
 );

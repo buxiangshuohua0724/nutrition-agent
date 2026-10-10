@@ -401,7 +401,7 @@ erDiagram
 
 **关键关系说明**
 
-- `user_favorite` 的唯一键是 `(user_id, food_id, deleted_at)`（[`docs/db/schema.sql:485`](db/schema.sql)），注释写明“**含 deleted_at：允许取消收藏后重新收藏**”。但请注意 8.1 节 G-01：由于 `NULL` 在唯一索引中互不相等，这条唯一键对“未删除行”实际上**不生效**。
+- `user_favorite` 的唯一键是 `(user_id, food_id, deleted_at, gd_deleted_key)`（[`docs/db/schema.sql`](db/schema.sql)），注释写明“**含 deleted_at：允许取消收藏后重新收藏**”。**该键对未删除行是真正生效的**：末列的生成列 `gd_deleted_key` 把 NULL 归一为 `'1970-01-01 00:00:00'`（见 8.1 节 G-01，已修复）。
 - `admin_audit_log.target_id` 是**多态指针**（配合 `target_type`），因此没有外键——它可能指向 `food` / `nutrition_value` / `knowledge_doc` 等不同表，这是有意的设计，不是遗漏。
 - `admin_audit_log.operator_name` 是**冗余用户名**：“用户删除后审计仍可读”（[`docs/db/schema.sql:499`](db/schema.sql)）。这是审计表在“引用完整性”与“可读性”之间的取舍。
 - `operation_log.message` 的注释是硬性限制：“注意：敏感信息（对话正文、个人资料、图片路径）禁止写入此处（PRD 8.4 限制日志记录）”（[`docs/db/schema.sql:527`](db/schema.sql)）。**数据库无法强制这一点**，只能靠应用层过滤（R18）。
@@ -731,7 +731,7 @@ schema 行内注释（[`docs/db/schema.sql:201`](db/schema.sql)）：**同一食
 
 键与索引：`PRIMARY KEY (id)`；`uk_source_code UNIQUE (code)`。无外键。
 
-> **`source_type` 是 `VARCHAR(24)`，没有 CHECK 或 ENUM 约束**：写进任意字符串都不会被数据库拒绝。schema 注释给出的取值域是 `DATABASE / GUIDELINE / PAPER / OFFICIAL / DEMO`，而 [`docs/data-source-policy.md:55-63`](data-source-policy.md) 的分级表还使用了 `LITERATURE / STANDARD / COMMERCIAL / OTHER / CUSTOM` —— 见 8.2 节 G-18。另：该政策文档 §2.1 要求的 `remark` 字段**在 `data_source` 中不存在**，最接近的是 `note`。
+> **`source_type` 的取值域由 `ck_source_type` CHECK 强制**（`VARCHAR(24)`，取值 `OFFICIAL / DATABASE / GUIDELINE / LITERATURE / STANDARD / COMMERCIAL / OTHER / DEMO / CUSTOM`），MySQL 与 H2 两份 schema 同域，且与 [`docs/data-source-policy.md`](data-source-policy.md) §1.3 的分级表**逐字一致**（该不变量由 `SchemaParityTest.sourceTypeDomainMatchesPolicy` 守护）。**注意 `remark` 这个列名不存在**：`data_source` 上的备注列叫 `note`（政策文档原先写错，已修，见 8.2 节 G-18）。
 
 ### 4.13 `nutrition_value` — 营养数值（三态）
 
@@ -770,7 +770,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 外键：`fk_nv_variant (variant_id) → food_state_variant(id)`；`fk_nv_nutrient (nutrient_id) → nutrient(id)`；`fk_nv_source (source_id) → data_source(id)`。
 
 > **本表是全项目事实准确性的枢纽**：`variant_id` NOT NULL 保证“营养不脱离形态”，`source_id` NOT NULL 保证“每条数值都有出处”，`ck_nv_status_amount` 保证“未知 ≠ 0”。
-> **注意：本表没有 `unit` 列**（单位在 `nutrient` 字典，[D3]）；[`docs/data-source-policy.md:418-422`](data-source-policy.md) 的 C-02 自检 SQL 却引用了 `nv.unit`，该查询会因“未知列”失败 —— 见 8.2 节 G-18。
+> **注意：本表没有 `unit` 列**（单位在 `nutrient` 字典，[D3]）。[`docs/data-source-policy.md`](data-source-policy.md) §6.2 的 C-02 自检 SQL 原先引用了不存在的 `nv.unit`，**已修为 `JOIN nutrient n ON n.id = nv.nutrient_id` 后校验 `n.unit`**（见 8.2 节 G-18）。
 
 ### 4.14 `knowledge_doc` — 营养知识文档
 
@@ -801,7 +801,7 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 键与索引：`PRIMARY KEY (id)`；`KEY idx_kdoc_publish (publish_status, review_status, deleted_at)`；`KEY idx_kdoc_category (category)`。**无 UNIQUE 键。**
 外键：`fk_kdoc_source (source_id) → data_source(id)`。
 
-> 本表**没有 `code` 列**；[`docs/data-source-policy.md:443`](data-source-policy.md)、[`docs/data-source-policy.md:461`](data-source-policy.md) 的 C-04 / C-05 自检 SQL 查询了 `kd.code`，会因“未知列”失败 —— 见 8.2 节 G-18。
+> 本表**没有 `code` 列**；[`docs/data-source-policy.md`](data-source-policy.md) §6.4 / §6.5 的 C-04 / C-05 自检 SQL 原先查询了不存在的 `kd.code`，**已改用 `kd.title`**（知识引用标识是 `KDOC_<docId 四位补零>#chunk<chunkIndex>`）。见 8.2 节 G-18。
 
 ### 4.15 `knowledge_chunk` — 知识分块
 
@@ -1030,21 +1030,21 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 | 表 | 唯一键 | 列 | 说明 |
 | --- | --- | --- | --- |
-| `sys_user` | `uk_user_username` | `(username, deleted_at)` | 登录名唯一（**但见 G-01：NULL 语义使该约束对未删除行失效**） |
-| `sys_user` | `uk_user_email` | `(email, deleted_at)` | 邮箱唯一；`email` 本身可空 |
+| `sys_user` | `uk_user_username` | `(username, deleted_at, gd_deleted_key)` | 登录名唯一（末列 `gd_deleted_key` 把未删除行的 NULL 归一为哨兵值，故对未删除行**真正生效**；见 G-01，已修复） |
+| `sys_user` | `uk_user_email` | `(email, deleted_at, gd_deleted_key)` | 邮箱唯一；`email` 本身可空 |
 | `sys_role` | `uk_role_code` | `(code)` | 角色码唯一（唯一键中**不含** `deleted_at`） |
 | `sys_auth_token` | `uk_token_hash` | `(token_hash)` | 令牌散列唯一，防重放同一令牌 |
 | `user_profile` | `uk_profile_user` | `(user_id)` | 一对一 |
-| `food_category` | `uk_category_slug` | `(slug, deleted_at)` | slug 唯一 |
-| `food` | `uk_food_code` | `(code, deleted_at)` | 业务编码唯一 |
-| `food_alias` | `uk_alias_food` | `(food_id, alias, deleted_at)` | 同一食品内别名不重复（**跨食品冲突管不到**） |
-| `food_state_variant` | `uk_variant_food_state` | `(food_id, state, cooking_method, deleted_at)` | 同食品同形态同做法不重复（`cooking_method` 可空 → 见 G-09） |
+| `food_category` | `uk_category_slug` | `(slug, deleted_at, gd_deleted_key)` | slug 唯一 |
+| `food` | `uk_food_code` | `(code, deleted_at, gd_deleted_key)` | 业务编码唯一 |
+| `food_alias` | `uk_alias_food` | `(food_id, alias, deleted_at, gd_deleted_key)` | 同一食品内别名不重复（**跨食品冲突管不到**） |
+| `food_state_variant` | `uk_variant_food_state` | `(food_id, state, cooking_method, deleted_at, gd_deleted_key)` | 同食品同形态同做法不重复（`cooking_method` 可空 → 见 G-09） |
 | `nutrient` | `uk_nutrient_code` | `(code)` | 指标编码唯一 |
 | `data_source` | `uk_source_code` | `(code)` | 来源编码唯一 |
-| `nutrition_value` | `uk_nv_variant_nutrient` | `(variant_id, nutrient_id, reference_amount, reference_unit, deleted_at)` | 同形态同指标同口径只允许一条有效记录，避免汇总重复计算 |
+| `nutrition_value` | `uk_nv_variant_nutrient` | `(variant_id, nutrient_id, reference_amount, reference_unit, deleted_at, gd_deleted_key)` | 同形态同指标同口径只允许一条有效记录，避免汇总重复计算（`gd_deleted_key` 使该约束对未删除行真正生效，见 G-01） |
 | `knowledge_chunk` | `uk_chunk_doc_index` | `(doc_id, chunk_index)` | 文档内分块序号唯一 |
 | `chat_message` | `uk_msg_session_seq` | `(session_id, seq)` | 会话内消息序号唯一（保序） |
-| `user_favorite` | `uk_fav_user_food` | `(user_id, food_id, deleted_at)` | 防重复收藏，且允许取消后重新收藏 |
+| `user_favorite` | `uk_fav_user_food` | `(user_id, food_id, deleted_at, gd_deleted_key)` | 防重复收藏，且允许取消后重新收藏 |
 
 另：`sys_user_role` 用**联合主键** `(user_id, role_id)` 达到唯一效果（无代理主键）。
 
@@ -1079,11 +1079,11 @@ CONSTRAINT `ck_nv_status_amount` CHECK (
 
 | 编号 | 冲突 | 位置 | 以 schema 为准的结论 |
 | --- | --- | --- | --- |
-| C-1 | `value_status` 被描述为 `ENUM('PRESENT','ZERO','MISSING')` | schema 头部设计说明 [`docs/db/schema.sql:22`](db/schema.sql)、[`docs/DESIGN.md:258`](DESIGN.md) ADR-02 | 实际列是 **`VARCHAR(16)`**（[`docs/db/schema.sql:314`](db/schema.sql)）；取值域靠 `ck_nv_status_amount` 间接约束，**没有 ENUM 类型** |
-| C-2 | `data_source` 被要求填 `remark` 字段（A 级来源逐条说明五条判据） | [`docs/data-source-policy.md:84`](data-source-policy.md)、[`docs/data-source-policy.md:102`](data-source-policy.md) | `data_source` **没有 `remark` 列**，只有 `note VARCHAR(512)`（[`docs/db/schema.sql:297`](db/schema.sql)） |
-| C-3 | 自检 SQL C-02 查询 `nv.unit` | [`docs/data-source-policy.md:418-422`](data-source-policy.md) | `nutrition_value` **没有 `unit` 列**；单位在 `nutrient.unit`（[D3]）。该 SQL 会以“未知列”报错 |
-| C-4 | 自检 SQL C-04 / C-05 查询 `kd.code` | [`docs/data-source-policy.md:443`](data-source-policy.md)、[`docs/data-source-policy.md:461`](data-source-policy.md) | `knowledge_doc` **没有 `code` 列**（[`docs/db/schema.sql:348-375`](db/schema.sql)）。两条 SQL 都会以“未知列”报错 |
-| C-5 | 来源分级表把级别映射到 `LITERATURE / STANDARD / COMMERCIAL / OTHER / CUSTOM`，并要求 `source_type` “严格取自 schema 枚举” | [`docs/data-source-policy.md:55-63`](data-source-policy.md)、[`docs/data-source-policy.md:96`](data-source-policy.md) | schema 注释给出的取值域是 `DATABASE / GUIDELINE / PAPER / OFFICIAL / DEMO`（[`docs/db/schema.sql:291`](db/schema.sql)）。`source_type` 是 `VARCHAR(24)` 无 CHECK，写入不会报错，但两处表述互相矛盾（§1.3 亦自认“不是 schema 中的新列”并记入 T-25） |
+| ~~C-1~~ | ~~`value_status` 被描述为 `ENUM('PRESENT','ZERO','MISSING')`~~ → ✅ 已消除 | schema 头部设计说明、`docs/DESIGN.md` ADR-02 | **已统一**：文档与 schema 都写 `VARCHAR(16) NOT NULL DEFAULT 'MISSING'`，并注明为何不用 ENUM（H2 `MODE=MySQL` 不支持 ENUM，dev/test 必须能建同一套表）；取值域由 `ck_nv_status_amount` + 应用层 Java 枚举双重兜住。见 G-02 |
+| ~~C-2~~ | ~~`data_source` 被要求填 `remark` 字段（A 级来源逐条说明五条判据）~~ → ✅ 已消除 | `docs/data-source-policy.md` §1.4 / §2.1 / §2.2 等 14 处 | **已统一为 `note VARCHAR(512)`**；另把原本误指到 `note` 的引用改到真正存在的落点（`nutrition_value.source_detail` / `reference_note`、`admin_audit_log`）。见 G-18 |
+| ~~C-3~~ | ~~自检 SQL C-02 查询 `nv.unit`~~ → ✅ 已消除 | `docs/data-source-policy.md` §6.2 | **已改为 `JOIN nutrient n ON n.id = nv.nutrient_id` 后校验 `n.unit`**（单位在字典，[D3]），并补上 `reference_amount > 0` 与“能量必须用 kcal/kJ”两类语义检查。见 G-18 |
+| ~~C-4~~ | ~~自检 SQL C-04 / C-05 查询 `kd.code`~~ → ✅ 已消除 | `docs/data-source-policy.md` §6.4 / §6.5 | **已改用 `kd.title`**；`knowledge_doc` 本就没有 `code` 列，其引用标识是 `KDOC_<docId 四位补零>#chunk<chunkIndex>`。见 G-18 |
+| ~~C-5~~ | ~~来源分级表把级别映射到 `LITERATURE / STANDARD / COMMERCIAL / OTHER / CUSTOM`，schema 注释域只有五个取值~~ → ✅ 已消除 | `docs/data-source-policy.md` §1.3、`docs/db/schema.sql` 的 `data_source` | **已取「政策文档定域」方案**：`source_type` 取值域统一为 `OFFICIAL/DATABASE/GUIDELINE/LITERATURE/STANDARD/COMMERCIAL/OTHER/DEMO/CUSTOM`，由 `ck_source_type` CHECK 在 MySQL 与 H2 两侧强制；`PAPER` 这一旧取值已删除（学术文献统一用 `LITERATURE`）。三处一致性由 `SchemaParityTest.sourceTypeDomainMatchesPolicy` 守护。见 G-18 |
 | C-6 | 交付物清单引用 `nutrition_agent/docs/PRD.md` | [`docs/ROADMAP.md:36`](ROADMAP.md)、[`README.md:7`](README.md) | 文件确实在**另一个目录**（下划线 `nutrition_agent`），不在本仓库 `nutrition-agent/docs/` 下；本文 1.3 节已注明 |
 | C-7 | 令牌方案：`README.md:38` 说“有状态令牌，令牌哈希落在 `sys_auth_token`，登出即删除该行”；[`docs/DESIGN.md:338`](DESIGN.md) ADR-10 说“自研 `TokenService`（HMAC-SHA256 签名令牌）”，并把 A-01 列为待确认 | README、DESIGN ADR-10 | schema 的结构（`token_hash` UNIQUE + `expires_at` NOT NULL + `revoked_at` 可空）**完全支持有状态可撤销令牌**；本文以 schema 为准记录为“有状态令牌表”，并保留该冲突（G-19） |
 | C-8 | `docs/ROADMAP.md` 阶段一交付物状态列 | [`docs/ROADMAP.md:34-47`](ROADMAP.md) | 多个已存在的文档仍标 ⬜（`use-cases.md`、`DESIGN.md`、`api-contract.md`、`agent-design.md`、`data-source-policy.md` 均已落盘）；本文落盘后第 5 项也应更新为 ✅。**状态列滞后于文件事实，属流程记录问题，不影响 schema** |
@@ -1144,15 +1144,15 @@ flowchart LR
 
 | 编号 | 项目 | 现状 | 风险 | 建议 | 关联 |
 | --- | --- | --- | --- | --- | --- |
-| **G-01** | 唯一键含 `deleted_at` 后**对未删除行失效** | 8 张表的唯一键把 `deleted_at` 作为最后一列（`uk_user_username`、`uk_user_email`、`uk_category_slug`、`uk_food_code`、`uk_alias_food`、`uk_variant_food_state`、`uk_nv_variant_nutrient`、`uk_fav_user_food`）。在 MySQL / H2 中 **`NULL` 互不相等**，因此两行 `deleted_at IS NULL` 的记录可以拥有完全相同的键值 —— 唯一性**没有被真正强制** | ①同一 `code` 可出现多条未删除食品；②同一用户可出现两条 `username` 相同记录；③同一形态同一营养素可重复录入，`uk_nv_variant_nutrient` 名存实亡，**汇总时重复计算**；④[`docs/DESIGN.md:318`](DESIGN.md) ADR-08 明确写“MySQL 中 NULL 不参与唯一性比较，正好使未删除行保持互斥”，该判断与数据库实际行为**相反**，会让人误以为已被约束保护 | 二选一：①增加**生成列**（如 `deleted_flag TINYINT AS (IF(deleted_at IS NULL, 0, 1)) STORED`）参与唯一索引，或 `alive_key` 生成列；②不用 NULL 表示未删除，改用哨兵值（如 `deleted_at` 默认 `'1970-01-01 00:00:00'`，并让时间戳语义改为“删除时间”）——两者都需改 schema 与全部查询条件；③短期内至少在服务层显式做存在性判重并补测试 | 与 ADR-08 直接冲突 |
-| **G-02** | `value_status` 实际是 `VARCHAR(16)` 而非 ENUM | schema 头部设计说明与 ADR-02 都写作 `ENUM('PRESENT','ZERO','MISSING')`，实际列是 `VARCHAR(16)`（[`docs/db/schema.sql:314`](db/schema.sql)） | 取值域目前仅由 `ck_nv_status_amount` **间接**限制；一旦将来放宽 CHECK 或新增不设 `amount` 的状态，VARCHAR 会静默接受任意字符串 | 优先把文档改成与 schema 一致（C-1）；若希望域由数据库直接表达，可在 MySQL 8 用 `CHECK (value_status IN ('PRESENT','ZERO','MISSING'))` 或改用 `ENUM` | C-1 |
+| ~~**G-01**~~ | ~~唯一键含 `deleted_at` 后**对未删除行失效**~~ → ✅ **已修复（2026-10 修订）** | **原现状**：8 张表的唯一键把 `deleted_at` 作为最后一列（`uk_user_username`、`uk_user_email`、`uk_category_slug`、`uk_food_code`、`uk_alias_food`、`uk_variant_food_state`、`uk_nv_variant_nutrient`、`uk_fav_user_food`）。在 MySQL / H2 中 **`NULL` 互不相等**，因此两行 `deleted_at IS NULL` 的记录可以拥有完全相同的键值 —— 唯一性**没有被真正强制** | **原风险**：①同一 `code` 可出现多条未删除食品；②同一用户可出现两条 `username` 相同记录；③同一形态同一营养素可重复录入，`uk_nv_variant_nutrient` 名存实亡，**汇总时重复计算**；④`docs/DESIGN.md` ADR-08 当时写“MySQL 中 NULL 不参与唯一性比较，正好使未删除行保持互斥”，该判断与数据库实际行为**相反** | **已按建议①修复**：8 张表各新增生成列 `gd_deleted_key`（MySQL：`DATETIME GENERATED ALWAYS AS (IFNULL(\`deleted_at\`, '1970-01-01 00:00:00')) VIRTUAL`；H2：`TIMESTAMP AS (IFNULL(\`deleted_at\`, TIMESTAMP '1970-01-01 00:00:00'))`），并把该列追加到上述 8 个唯一键末尾。ADR-08 的相反判断已删除线标注纠正。**遗留**：①`deleted_at` 必须是 NULL 才表示未删除（哨兵值写法未采用）；②同秒两次软删会被唯一键拒绝，属可接受的宁严勿松 | 已由 `SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` 卡住（含 `nullSafeCount == 8` 期望值） |
+| ~~**G-02**~~ | ~~`value_status` 实际是 `VARCHAR(16)` 而非 ENUM~~ → ✅ **已修复（2026-10 修订）** | **原现状**：schema 头部设计说明与 ADR-02 都写作 `ENUM('PRESENT','ZERO','MISSING')`，实际列是 `VARCHAR(16)` | **原风险**：取值域仅由 `ck_nv_status_amount` **间接**限制 | **已按建议（改文档）修复**：`docs/db/schema.sql` 头部 `[D2]`、`docs/DESIGN.md` ADR-02 均改为 `VARCHAR(16) NOT NULL DEFAULT 'MISSING'`，并写明**为何不能用 ENUM**（H2 2.x `MODE=MySQL` 不支持 ENUM，而 dev/test 必须能在 H2 建同一套表）。取值域由 `ck_nv_status_amount`（语义）+ 应用层 Java 枚举（取值）双重兜住 | 原关联 C-1；见 `docs/DESIGN.md` ADR-02「取值域类型说明」 |
 | **G-03** | `food` 表**没有 `source_id`** | `suitable_for`（适宜人群）、`cautions`（注意事项）、`common_usage`、`origin` 等字段都直接挂在 `food` 上，而这些恰恰是最需要出处的内容；`food` 表没有任何来源列 | 这些字段无法自动校验来源，只能靠内容管理员自觉与 `admin_audit_log` 事后追溯；“有依据时填写”（[`docs/db/schema.sql:167`](db/schema.sql)）中的“有依据”**没有结构载体** | ①为 `food` 增加可空 `source_id`（或单独的 `food_source` 关联表，支持一条食品多来源），并配套发布门禁；②若坚持不加列，则必须在 `data-source-policy.md` 的 §3.2 明确“食品基础信息不建来源、由审计留痕替代”，并在后台 UI 强制填写引用说明 | 政策 §3.2 |
 | **G-04** | `food_state_variant.is_default` 无唯一约束 | 同一食品可以有任意多行 `is_default = 1`（[`docs/db/schema.sql:243`](db/schema.sql)） | 详情页“默认形态”不确定，`variantId` 省略时的计算结果随查询顺序变化（同一份数据两次访问可能给出不同形态的营养值） | 服务层设置新默认时清除旧的，并补并发测试；数据库侧可用生成列 `default_flag AS (IF(is_default=1, food_id, NULL)) STORED` + 唯一索引实现 | A-06 |
 | **G-05** | `food_image.is_cover` 无唯一约束 | 同一食品可以有多张 `is_cover = 1`（`food_image` **完全没有 UNIQUE 键**） | 封面图不确定，列表页与详情页可能展示不同图片 | 与 G-04 同法：服务层保证唯一 + 生成列唯一索引 | A-06 同类 |
 | **G-06** | `image_recognition.session_id` 无外键 | 列存在、注释说明“识别后继续追问时关联会话”，但没有 `FOREIGN KEY`（[`docs/db/schema.sql:449`](db/schema.sql)） | 会话被删除后留下悬空引用；与其他 22 条外键的一致性策略不一致，排查数据问题时无法用连接直接定位 | 补 `fk_recog_session (session_id) → chat_session(id)`；若有意不约束（例如为保留识别审计而允许会话清理），必须在 schema 注释中写明理由 | T-07 / A-05 |
 | **G-07** | `operation_log.user_id` 无外键 | 日志表持 `user_id` 但无约束（[`docs/db/schema.sql:521`](db/schema.sql)） | 与 G-06 同类的悬空引用；写错 id 时无人发现 | 明确立场：日志表**故意**不建外键以支持留存（则写进注释）；或补外键并接受“用户物理删除受限” | — |
 | **G-08** | `food_image.variant_id` 不校验形态属于同一食品 | `food_image` 同时有 `food_id`（NOT NULL）与 `variant_id`（可空），两者各自独立外键（[`docs/db/schema.sql:229-230`](db/schema.sql)） | 完全可以把 A 食品的图片挂到 B 食品的形态上；一旦如此，“菜品图与原材料图必须可区分”的保证被绕过，进而可能把烹饪成品的图当成原材料数据的配图 | 服务层校验 `variant.food_id == image.food_id`（必须在新增/编辑图片接口实现）；数据库侧可用复合外键（`food_state_variant` 增加 `UNIQUE (id, food_id)`，`food_image` 建 `(variant_id, food_id)` 复合外键） | PRD 5.3 图片类型 |
-| **G-09** | `cooking_method` 的“COOKED 时必填”无强制；且 NULL 参与唯一键 | 唯一键是 `(food_id, state, cooking_method, deleted_at)`，而 `cooking_method` 可空（[`docs/db/schema.sql:239`](db/schema.sql)、[`docs/db/schema.sql:250`](db/schema.sql)） | ①`state='COOKED'` 且 `cooking_method IS NULL` 可写入，生熟形态无法区分；②因 NULL 语义，同一食品可插入**多条** `state='COOKED'` 且 `cooking_method IS NULL` 的形态，唯一键失效 | 服务层强校验（UC-22 已要求 `40001`）；数据库侧可用 `CHECK (state <> 'COOKED' OR cooking_method IS NOT NULL)`，并把 `cooking_method` 默认值改为 `''` 或哨兵值以恢复唯一性 | UC-22；与 G-01 同源 |
+| **G-09** | `cooking_method` 的“COOKED 时必填”无强制；且该列可空会让唯一键在同一 `COOKED+NULL` 上重复 | 唯一键是 `(food_id, state, cooking_method, deleted_at, gd_deleted_key)`，而 `cooking_method` 可空（[`docs/db/schema.sql`](db/schema.sql) 的 `food_state_variant`） | ①`state='COOKED'` 且 `cooking_method IS NULL` 可写入，生熟形态无法区分；②~~因 NULL 语义，同一食品可插入**多条** `state='COOKED'` 且 `cooking_method IS NULL` 的形态，唯一键失效~~ —— **这一点已被 G-01 的 `gd_deleted_key` 修复覆盖**：键里不再有互通不相等的 NULL 列，同一 `(food_id,'COOKED',NULL)` 的第二条会被拒绝（当 `deleted_at` 也同为 NULL 时）。剩下的只有第①点：语义上“COOKED 必须有烹饪方式”仍未被约束 | 服务层强校验（UC-22 已要求 `40001`）；数据库侧可用 `CHECK (state <> 'COOKED' OR cooking_method IS NOT NULL)` | UC-22；原与 G-01 同源，G-01 已修 |
 | **G-10** | 缺少数值范围 CHECK | 没有 `amount >= 0`、`reference_amount > 0`、`edible_ratio` 取值范围的约束 | 可写入负的营养数值（例如 `amount = -5` 且 `value_status='PRESENT'` 能通过 CHECK）；`edible_ratio` 可写 1.5 或负数 | 增加 `CHECK (amount IS NULL OR amount >= 0)`、`CHECK (reference_amount > 0)`、`CHECK (edible_ratio IS NULL OR (edible_ratio > 0 AND edible_ratio <= 1))` | — |
 | **G-11** | `food_alias` 跨食品同名别名冲突无数据库约束 | 表内唯一键只覆盖“同一食品内不重复”；schema 注释明确写“跨食品同名别名在服务层做冲突校验”（[`docs/db/schema.sql:201`](db/schema.sql)） | “别名不能随意覆盖其他食品的标准名称”（PRD 5.2）这一明文业务规则仅靠服务层自觉；一旦漏实现，搜索会把用户导向错误食品 | 服务层必须返回 `40901` 并补单元测试；长期可加触发器或应用启动期全量校验 | T-04 / R08 |
 | **G-12** | 内容表审计列无外键 | `food` / `nutrition_value` / `knowledge_doc` 的 `created_by`、`updated_by`、`reviewed_by` 均无外键 | 可能记入不存在的用户 id；审计追责链出现断点 | 补外键（可空外键不影响逻辑删除）；或明确接受并写进注释 | `[D7]` |
@@ -1166,7 +1166,7 @@ flowchart LR
 
 | 编号 | 项目 | 现状 | 风险 | 建议 | 关联 |
 | --- | --- | --- | --- | --- | --- |
-| **G-18** | 政策文档与 schema 的四处不一致 | C-2（`data_source.remark` 不存在，实为 `note`）、C-3（C-02 查询不存在的 `nv.unit`）、C-4（C-04/C-05 查询不存在的 `kd.code`）、C-5（分级表使用的 `source_type` 取值超出 schema 注释域） | C-02 / C-04 / C-05 三条“来源可追溯率 100%”自检 SQL **跑不起来**（未知列），验收时会被误判为“无问题”或“工具坏”；分级映射与 `source_type` 实际取值错位会使门禁判据失去依据 | 以 schema 为准修订政策文档：`remark` → `note`；C-02 改为校验 `nutrient.unit` 与参考口径；C-04/C-05 去掉 `kd.code`；`source_type` 取值域二选一（要么把 `LITERATURE`/`STANDARD`/`COMMERCIAL`/`OTHER`/`CUSTOM` 正式写入 schema 注释，要么分级表只用已有五个取值）；并给 `source_type` 加 CHECK | C-2~C-5 / T-25 |
+| ~~**G-18**~~ | ~~政策文档与 schema 的四处不一致~~ → ✅ **已修复（2026-10 修订）** | **原现状**：C-2（`data_source.remark` 不存在，实为 `note`）、C-3（C-02 查询不存在的 `nv.unit`）、C-4（C-04/C-05 查询不存在的 `kd.code`）、C-5（分级表使用的 `source_type` 取值超出 schema 注释域） | **原风险**：C-02 / C-04 / C-05 三条“来源可追溯率 100%”自检 SQL **跑不起来**（未知列）；分级映射与 `source_type` 实际取值错位会使门禁判据失去依据 | **已修**：①`remark` → `note`（14 处，另把指错表的引用改到真正存在的落点：`nutrition_value.source_detail` / `reference_note`、`admin_audit_log`）；②C-02 改为 `JOIN nutrient` 后校验 `n.unit`，并卡 `reference_amount > 0` 与“能量必须用 kcal/kJ”；③C-04/C-05 去掉 `kd.code`，改用 `kd.title`（引用标识是 `KDOC_<id>#chunk<n>`，`knowledge_doc` 本就没有 `code` 列）；④`source_type` 取值域统一为 `OFFICIAL/DATABASE/GUIDELINE/LITERATURE/STANDARD/COMMERCIAL/OTHER/DEMO/CUSTOM`，**由 `ck_source_type` CHECK 在 MySQL 与 H2 两侧强制**，与 `data-source-policy.md` §1.3 逐字一致；⑤顺带修正 C-03 注释里写反的通过条件（“永不为空” → “永不返回行”）与 LG-04/N2 里把 `unit` 当 `nutrition_value` 列的错误落点。**遗留**：`COMMERCIAL`/`OTHER` 是否该进 schema 曾是开放问题，本次选择「按政策文档定域」而非「收敛政策」，已在 `data-source-policy.md` 记录 | 原关联 C-2~C-5 / T-25 / T-27；新增守护 `SchemaParityTest.sourceTypeDomainMatchesPolicy` |
 | **G-19** | 令牌方案两处描述不一致 | `README.md:38` 为“有状态令牌（令牌哈希落库、登出即删行）”；[`docs/DESIGN.md:338`](DESIGN.md) ADR-10 为“HMAC-SHA256 签名令牌”，且 A-01 仍列为待确认 | 决定 `TokenService` 是否需要每请求查库，影响登出语义、性能与限流实现位置 | 二选一并写入契约。**本文建议采用有状态**：`sys_auth_token` 的 `token_hash` UNIQUE + `expires_at` NOT NULL + `revoked_at` 已经是完整的有状态撤销模型，且与 README 一致；随后把 ADR-10 与 A-01 一并更新 | C-7 / A-01 / T-09 |
 | **G-20** | 交付物路径与状态列滞后 | `PRD.md` 实际位于 `nutrition_agent/docs/`（下划线目录），而交付物清单引用 `nutrition_agent/docs/PRD.md`、进度表把已存在的文档标为 ⬜（[`docs/ROADMAP.md:34-47`](ROADMAP.md)） | 里程碑验收时“交付物是否齐全”无法从 ROADMAP 直接判定（本次核对本文档即遇到此问题：任务给出的 `docs/PRD.md` 路径在本仓库不存在） | 统一 PRD 存放位置（建议移入 `nutrition-agent/docs/PRD.md`）并同步 ROADMAP 与 README 的链接；ROADMAP 状态列按文件事实回写 | C-6 / C-8 |
 
@@ -1174,11 +1174,12 @@ flowchart LR
 
 | 优先级 | 项 | 理由 |
 | --- | --- | --- |
-| **P0** | G-01 | 唯一性是数据完整性的地基，且 ADR-08 的说明与数据库实际行为相反，越晚发现返工越大 |
-| **P0** | G-18 | 三条自检 SQL 跑不通，直接削弱“可追溯率 100%”的验收证据链 |
-| **P1** | G-04、G-06、G-09、G-11、G-15 | 都会导致“同一份数据出现两种结果”或“规则名存实亡”，属于产品承诺级别 |
+| ~~**P0**~~ ✅ | ~~G-01~~ | **已修复**（生成列 `gd_deleted_key` 参与 8 个唯一键；`SchemaParityTest.logicDeleteUniqueKeysAreNullSafe` 守护） |
+| ~~**P0**~~ ✅ | ~~G-18~~ | **已修复**（`remark`→`note`、C-02 改 JOIN `nutrient`、C-04/C-05 去掉 `kd.code`、`source_type` 加 `ck_source_type` CHECK 并与政策文档对齐；`SchemaParityTest.sourceTypeDomainMatchesPolicy` 守护） |
+| ~~**P2**~~ ✅ | ~~G-02~~ | **已修复**（文档回写为 `VARCHAR(16)`，并说明为何不能用 ENUM） |
+| **P1** | G-04、G-06、G-09、G-11、G-15 | 都会导致“同一份数据出现两种结果”或“规则名存实亡”，属于产品承诺级别（G-09 的第②点已随 G-01 消失，只剩语义校验） |
 | **P1** | G-03 | 与“来源可追溯”主线直接相关（`suitable_for` / `cautions` 无出处载体） |
-| **P2** | G-02、G-05、G-07、G-08、G-10、G-12、G-13、G-14、G-16、G-17 | 一致性、可维护性与防错改进 |
+| **P2** | G-05、G-07、G-08、G-10、G-12、G-13、G-14、G-16、G-17 | 一致性、可维护性与防错改进 |
 | **P2** | G-19、G-20 | 文档与流程一致性，影响验收效率而非数据正确性 |
 
 ---
