@@ -51,7 +51,10 @@ function openFood(foodId) {
     <header class="na-history__head">
       <div>
         <h2 class="na-history__title">浏览历史</h2>
-        <p class="na-history__desc">共 {{ historyStore.count }} 条记录，仅保存在本机浏览器中。</p>
+        <p class="na-history__desc">
+          共 {{ historyStore.count }} 条记录，仅保存在本机浏览器中。
+          AI 问答的会话历史在「AI问答」页里，两者不是同一份数据。
+        </p>
       </div>
       <div class="na-history__actions">
         <button type="button" class="na-btn na-btn--ghost" :disabled="records.length === 0" @click="clearDialogOpen = true">

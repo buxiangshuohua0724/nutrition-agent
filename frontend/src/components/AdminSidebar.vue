@@ -11,6 +11,7 @@ import { useRoute } from 'vue-router'
 import NavIcon from './NavIcon.vue'
 import { ADMIN_MENU } from '../router/menu.js'
 import { useAuthStore } from '../stores/auth.js'
+import { roleLabels } from '../utils/roles.js'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -58,7 +59,9 @@ function isActive(to) {
         <NavIcon name="home" :size="18" />
         <span class="na-admin-sidebar__label">返回用户端</span>
       </RouterLink>
-      <p class="na-admin-sidebar__role">当前角色：{{ authStore.isAdmin ? authStore.roles.join(' / ') : '非管理角色' }}</p>
+      <p class="na-admin-sidebar__role">
+        当前角色：{{ authStore.isAdmin ? roleLabels(authStore.roles) : '非管理角色' }}
+      </p>
     </div>
   </aside>
 </template>

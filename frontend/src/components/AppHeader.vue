@@ -13,6 +13,7 @@ import NavIcon from './NavIcon.vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useToastStore } from '../stores/toast.js'
 import { SITE_NAME } from '../router/index.js'
+import { primaryRoleLabel } from '../utils/roles.js'
 
 const props = defineProps({
   /** `user` | `admin` */
@@ -39,13 +40,8 @@ const avatarInitial = computed(() => {
   return name ? name.slice(0, 1).toUpperCase() : '?'
 })
 
-/** 角色中文名 */
-const roleLabel = computed(() => {
-  if (authStore.isSysAdmin) return '系统管理员'
-  if (authStore.isContentAdmin) return '内容管理员'
-  if (authStore.isLoggedIn) return '普通用户'
-  return '游客'
-})
+/** 角色中文名（统一走 utils/roles，避免各页各写一套） */
+const roleLabel = computed(() => primaryRoleLabel(authStore.user))
 
 /** 提交顶栏搜索 */
 function submitSearch() {
@@ -74,7 +70,7 @@ function toggleMenu() {
   <header class="na-header" :class="{ 'na-header--admin': isAdminLayout }">
     <div class="na-header__left">
       <h1 class="na-header__title">
-        <span v-if="isAdminLayout" class="na-header__admin-tag">管理员</span>
+        <span v-if="isAdminLayout" class="na-header__admin-tag">{{ roleLabel }}</span>
         {{ title }}
       </h1>
     </div>

@@ -24,7 +24,7 @@ import { getFoodDetail, getFoodNutrition, getRelatedFoods } from '../api/foods'
 import { useFavoritesStore } from '../stores/favorites'
 import { useHistoryStore } from '../stores/history'
 import { useToastStore } from '../stores/toast'
-import { textOrPlaceholder } from '../utils/format'
+import { formatDateTime, textOrPlaceholder } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -82,6 +82,23 @@ const aliasText = computed(() => {
   return ''
 })
 
+/**
+ * 营养数据的来源名称（FR-003 要求详情页展示"数据来源"）。
+ * 取接口返回的 `sources[].name`，不做任何拼接或推断；没有来源时显示占位符。
+ */
+const nutritionSourceText = computed(() => {
+  const names = nutritionSources.value
+    .map((source) => (source && source.name ? String(source.name) : ''))
+    .filter((name) => name !== '')
+  return names.length > 0 ? names.join('、') : ''
+})
+
+/** 营养数据的更新时间（FR-003 要求详情页展示"更新时间"） */
+const nutritionUpdatedAt = computed(() => {
+  if (!nutritionTable.value) return null
+  return nutritionTable.value.dataUpdatedAt || null
+})
+
 /** 基本信息两列表格的数据（缺失值显示占位符，不编造） */
 const basicRows = computed(() => {
   const item = food.value
@@ -93,6 +110,10 @@ const basicRows = computed(() => {
     { label: '产地', value: textOrPlaceholder(item.origin) },
     { label: '储存方式', value: textOrPlaceholder(item.storageMethod || item.storage) },
     { label: '食品编码', value: textOrPlaceholder(item.code) },
+    // FR-003：食品详情必须给出营养数据的来源与更新时间，便于追溯。
+    // 两者都取自接口返回值；取不到时显示占位符，绝不编造来源。
+    { label: '数据来源', value: textOrPlaceholder(nutritionSourceText.value) },
+    { label: '数据更新时间', value: formatDateTime(nutritionUpdatedAt.value) },
   ]
 })
 
@@ -146,7 +167,8 @@ const activeTextContent = computed(() => {
 async function loadDetail() {
   loading.value = true
   loadFailed.value = false
-  const { data, isDemoData: demo, error } = await getFoodDetail(foodId.value)
+  // 有演示数据兜底，接口不可用时不弹红色错误提示，只由页面内黄色横幅统一说明
+  const { data, isDemoData: demo, error } = await getFoodDetail(foodId.value, { silent: true })
   loading.value = false
   isDemoData.value = demo
   loadFailed.value = Boolean(error)
@@ -177,9 +199,13 @@ async function loadNutrition() {
   if (!food.value) return
   nutritionLoading.value = true
   nutritionFailed.value = false
-  const { data, isDemoData: demo, error } = await getFoodNutrition(foodId.value, {
-    variantId: activeVariantId.value,
-  })
+  const { data, isDemoData: demo, error } = await getFoodNutrition(
+    foodId.value,
+    {
+      variantId: activeVariantId.value,
+    },
+    { silent: true },
+  )
   nutritionLoading.value = false
   if (demo) isDemoData.value = true
   nutritionFailed.value = Boolean(error)

@@ -40,6 +40,7 @@ TOKENS_CSS = os.path.join(ROOT, 'frontend', 'src', 'design', 'tokens.css')
 H2_DATA = os.path.join(ROOT, 'backend', 'src', 'main', 'resources', 'db', 'h2', 'data.sql')
 MYSQL_SCHEMA = os.path.join(ROOT, 'docs', 'db', 'schema.sql')
 H2_SCHEMA = os.path.join(ROOT, 'backend', 'src', 'main', 'resources', 'db', 'h2', 'schema.sql')
+DEMO_DATASET = os.path.join(ROOT, 'frontend', 'src', 'api', 'demo-dataset.js')
 
 problems = []
 notes = []
@@ -291,6 +292,44 @@ else:
         only_h2 = sorted(set(hc) - set(mc))
         if only_my or only_h2:
             problems.append('表 %s 列不一致：只在 MySQL %s ｜ 只在 H2 %s' % (t, only_my, only_h2))
+
+# ------------------------------------------------- 6. 演示数据集与种子数据一致
+# 演示数据由 scripts/gen_demo_dataset.py 从 data.sql 生成。它一旦过期，
+# 界面就会开始展示与数据库不符的食品/营养数据（曾经真的发生过），
+# 因此这里把「生成物的自检统计」与「data.sql 的实测统计」逐项对齐。
+if not os.path.isfile(DEMO_DATASET):
+    problems.append('frontend/src/api/demo-dataset.js 不存在，请运行 scripts/gen_demo_dataset.py')
+else:
+    demo_js = read(DEMO_DATASET)
+    stats_match = re.search(r'DEMO_DATASET_STATS\s*=\s*\{(.*?)\}', demo_js, re.S)
+    if not stats_match:
+        problems.append('demo-dataset.js 里找不到 DEMO_DATASET_STATS')
+    else:
+        demo_stats = {
+            k: int(v)
+            for k, v in re.findall(r'(\w+)\s*:\s*(\d+)', stats_match.group(1))
+        }
+        nv_cols, nv_rows = insert_rows(data_sql, 'nutrition_value')
+        _, variant_rows = insert_rows(data_sql, 'food_state_variant')
+        real_status = {}
+        if nv_cols and 'value_status' in nv_cols:
+            idx_st = nv_cols.index('value_status')
+            for r in nv_rows or []:
+                st = unquote(r[idx_st])
+                real_status[st] = real_status.get(st, 0) + 1
+        expect = {
+            'foodCount': len(food_rows or []),
+            'variantCount': len(variant_rows or []),
+            'presentCount': real_status.get('PRESENT', 0),
+            'zeroCount': real_status.get('ZERO', 0),
+            'missingCount': real_status.get('MISSING', 0),
+        }
+        notes.append('演示数据集统计 %s（对照 data.sql %s）' % (demo_stats, expect))
+        drift = {k: (demo_stats.get(k), v) for k, v in expect.items() if demo_stats.get(k) != v}
+        if drift:
+            problems.append(
+                'demo-dataset.js 已与 data.sql 脱节（字段: 生成值 vs 实际值 = %s），'
+                '请重新运行 scripts/gen_demo_dataset.py' % drift)
 
 # ---------------------------------------------------------------- 输出
 print('=' * 72)

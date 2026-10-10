@@ -16,7 +16,7 @@ export const USER_MENU = [
 ]
 
 /** 用户侧底部菜单（与主菜单视觉分组） */
-export const USER_FOOTER_MENU = [{ label: '设置', to: '/me', icon: 'settings' }]
+export const USER_FOOTER_MENU = [{ label: '设置', to: '/me/settings', icon: 'settings' }]
 
 /**
  * 后台菜单。

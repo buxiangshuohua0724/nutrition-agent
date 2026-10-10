@@ -313,15 +313,22 @@ onMounted(loadFoods)
         </table>
       </div>
 
+      <!--
+        未选择形态 ≠ 该形态没有数据。前者是"尚未发起查询"，后者才是「暂无数据」；
+        两者若共用同一句文案，会与三态语义（MISSING 表示数据库确实缺这一项）冲突。
+      -->
+      <EmptyState
+        v-else-if="!selectedVariantId"
+        icon="chart"
+        title="请先选择食品与形态"
+        description="选择之后这里会列出该形态的营养项，可逐项修改或新增。"
+      />
+
       <EmptyState
         v-else
         icon="chart"
-        title="没有可编辑的营养项"
-        :description="
-          selectedVariantId
-            ? '该形态还没有营养数据，或行数据暂未返回。可以新增一行手工录入。'
-            : '请先选择食品与形态。'
-        "
+        title="该形态还没有营养数据"
+        description="数据库里这个形态没有营养记录。可以新增一行手工录入，或前往食品库确认形态是否正确。"
       />
 
       <div class="na-admin-nutrition__actions">

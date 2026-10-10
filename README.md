@@ -33,10 +33,11 @@
 ### 后端
 - **Java 17+**（本机验证于 JDK 23.0.1）
 - **Spring Boot 3.5.8**（模块化单体，非微服务）
-- **MyBatis-Plus 3.5.14**（持久层）
-- **MySQL 8.0**（生产）/ **H2**（`dev` 内存库，零依赖启动）
-- **springdoc-openapi 2.6.0**（OpenAPI 3 契约）
-- 自研轻量鉴权（HMAC-SHA256 签名令牌），不引入重量级依赖
+- **MyBatis-Plus 3.5.9**（持久层）
+- **MySQL 8.0**（生产）/ **H2 2.4.240**（`dev` 内存库，零依赖启动）
+- 自研轻量鉴权：**有状态令牌**，令牌哈希落在 `sys_auth_token` 表（`docs/db/schema.sql`），
+  登出即删除该行、可真正吊销；不引入轻量级依赖。**接口文档以 `docs/api-contract.md` 为唯一权威来源**
+  （离线依赖仓库中不存在与 Spring Boot 3.5.8 兼容的 springdoc 版本，故不引入 OpenAPI 自动生成）
 
 ### 前端
 - **Vue 3.5**（`<script setup>` + Composition API）

@@ -69,13 +69,18 @@ async function loadCategories() {
 async function runSearch() {
   loading.value = true
   loadFailed.value = false
-  const { data, isDemoData: demo, error } = await searchFoods({
-    keyword: keyword.value.trim(),
-    categoryId: currentCategory.value ? currentCategory.value.id : undefined,
-    page: page.value,
-    pageSize,
-    sort: sort.value,
-  })
+  // 搜索有演示数据兜底，接口不可用时不弹红色错误提示，
+  // 只由页面内的黄色「演示数据」横幅统一说明（避免自相矛盾的两条提示）。
+  const { data, isDemoData: demo, error } = await searchFoods(
+    {
+      keyword: keyword.value.trim(),
+      categoryId: currentCategory.value ? currentCategory.value.id : undefined,
+      page: page.value,
+      pageSize,
+      sort: sort.value,
+    },
+    { silent: true },
+  )
   loading.value = false
   isDemoData.value = demo
   loadFailed.value = Boolean(error)

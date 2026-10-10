@@ -2,55 +2,51 @@
 /**
  * 我的健康（个人中心）
  *
+ * 职责边界：这里只看"我的健康状态"——个人资料摘要、饮食偏好、收藏与浏览历史入口。
+ * 账号资料编辑、退出登录、删除个人数据属于**设置**，见 `MeSettingsView.vue`（`/me/settings`）。
+ *
  * 数据来源：
- *   - `GET /users/me`            当前用户
- *   - `PUT /users/me/profile`    更新昵称 / 邮箱 / 偏好
- *   - `DELETE /users/me/data`    删除个人数据（FR-007 删除权，二次确认）
+ *   - `GET /users/me`              当前用户（含 `preferences`）
+ *   - `GET /users/me/favorites`    收藏（由 `favoritesStore` 持有）
  *
  * 未登录时展示登录引导，不展示任何需要鉴权的数据。
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import ConfirmDialog from '../components/ConfirmDialog.vue'
 import NoticeBanner from '../components/NoticeBanner.vue'
 import EmptyState from '../components/EmptyState.vue'
-import NavIcon from '../components/NavIcon.vue'
 import { useAuthStore } from '../stores/auth'
 import { useFavoritesStore } from '../stores/favorites'
 import { useHistoryStore } from '../stores/history'
-import { useToastStore } from '../stores/toast'
-import { deleteMyData } from '../api/users'
 import { formatDateTime, textOrPlaceholder } from '../utils/format'
+import { primaryRoleLabel } from '../utils/roles'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const favoritesStore = useFavoritesStore()
 const historyStore = useHistoryStore()
-const toastStore = useToastStore()
 
-const form = reactive({ nickname: '', email: '' })
-const saving = ref(false)
-const deleteDialogOpen = ref(false)
-const deleting = ref(false)
 const loadError = ref('')
 
 /** 是否有可展示的资料 */
 const hasProfile = computed(() => Boolean(authStore.user))
 
-/** 角色文案（区分 CONTENT_ADMIN 与 SYS_ADMIN） */
-const roleText = computed(() => {
-  if (authStore.isSysAdmin) return '系统管理员'
-  if (authStore.isContentAdmin) return '内容管理员'
-  if (authStore.isLoggedIn) return '普通用户'
-  return '游客'
+/** 角色文案（统一走 utils/roles，与后台、设置页保持同一套叫法） */
+const roleText = computed(() => primaryRoleLabel(authStore.user))
+
+/** 饮食目标（用户资料里的偏好；未设置时显示占位，不臆造默认目标） */
+const goalText = computed(() => {
+  const preferences = (authStore.user && authStore.user.preferences) || null
+  return textOrPlaceholder(preferences && preferences.goal ? preferences.goal : '')
 })
 
-/** 资料写入表单（接口返回后同步一次） */
-function syncForm() {
-  form.nickname = authStore.user && authStore.user.nickname ? authStore.user.nickname : ''
-  form.email = authStore.user && authStore.user.email ? authStore.user.email : ''
-}
+/** 忌口 / 规避项（数组；为空时显示占位） */
+const avoidList = computed(() => {
+  const preferences = (authStore.user && authStore.user.preferences) || null
+  const avoid = preferences && Array.isArray(preferences.avoid) ? preferences.avoid : []
+  return avoid.filter((item) => typeof item === 'string' && item.trim() !== '')
+})
 
 /** 加载资料 */
 async function loadProfile() {
@@ -58,64 +54,19 @@ async function loadProfile() {
   loadError.value = ''
   try {
     await authStore.fetchProfile({ force: true })
-    syncForm()
   } catch (error) {
     loadError.value = '暂时无法获取个人资料，请稍后重试。'
   }
 }
 
-/** 保存资料 */
-async function saveProfile() {
-  if (saving.value) return
-  saving.value = true
-  try {
-    // 走 store 的 updateProfile，保存成功后会同步本地缓存的用户信息
-    await authStore.updateProfile({ nickname: form.nickname, email: form.email })
-    syncForm()
-    toastStore.success('资料已保存')
-  } catch (error) {
-    // 错误提示已由 api 层统一处理
-  } finally {
-    saving.value = false
-  }
-}
-
-/** 退出登录 */
-async function handleLogout() {
-  await authStore.logout()
-  toastStore.success('已退出登录')
-  router.push('/')
-}
-
-/** 真正执行"删除个人数据" */
-async function confirmDeleteData() {
-  deleting.value = true
-  try {
-    await deleteMyData()
-    favoritesStore.clear()
-    historyStore.clear()
-    authStore.clearAuth()
-    toastStore.success('个人数据已删除')
-    router.push('/')
-  } catch (error) {
-    // 错误提示已由 api 层统一处理
-  } finally {
-    deleting.value = false
-    deleteDialogOpen.value = false
-  }
-}
-
-onMounted(async () => {
-  await loadProfile()
-  syncForm()
-})
+onMounted(loadProfile)
 </script>
 
 <template>
   <div class="na-me">
     <header class="na-me__head">
       <h2 class="na-me__title">我的健康</h2>
-      <p class="na-me__desc">管理个人资料、收藏与浏览历史。</p>
+      <p class="na-me__desc">查看健康资料、饮食偏好，以及收藏与浏览历史。</p>
     </header>
 
     <!-- 未登录 -->
@@ -160,55 +111,38 @@ onMounted(async () => {
           <div class="na-me__actions">
             <RouterLink class="na-btn na-btn--ghost" to="/me/favorites">我的收藏</RouterLink>
             <RouterLink class="na-btn na-btn--ghost" to="/me/history">浏览历史</RouterLink>
-            <button type="button" class="na-btn na-btn--ghost" @click="handleLogout">退出登录</button>
+            <RouterLink class="na-btn na-btn--ghost" to="/me/settings">设置</RouterLink>
           </div>
         </section>
 
-        <!-- 右：可编辑资料 + 危险操作 -->
+        <!-- 右：饮食偏好（只读展示；编辑入口在设置页） -->
         <div class="na-me__right">
-          <section class="na-card na-me__form-card">
-            <h3 class="na-me__section-title">编辑资料</h3>
-            <form class="na-me__form" @submit.prevent="saveProfile">
-              <div class="na-me__field">
-                <label for="na-me-nickname">昵称</label>
-                <input id="na-me-nickname" v-model="form.nickname" class="na-input" type="text" maxlength="32" placeholder="请输入昵称" />
-              </div>
-              <div class="na-me__field">
-                <label for="na-me-email">邮箱</label>
-                <input id="na-me-email" v-model="form.email" class="na-input" type="email" maxlength="64" placeholder="请输入邮箱（可选）" />
-              </div>
-              <button type="submit" class="na-btn na-btn--primary" :disabled="saving">
-                {{ saving ? '保存中…' : '保存资料' }}
-              </button>
-            </form>
-          </section>
-
-          <section class="na-card na-me__danger">
-            <h3 class="na-me__section-title">
-              <NavIcon name="warning" :size="18" />
-              危险操作
-            </h3>
-            <p class="na-me__danger-desc">
-              删除个人数据会清除账号下的收藏、偏好与问答会话记录，该操作不可撤销。
+          <section class="na-card na-me__prefs">
+            <h3 class="na-me__section-title">饮食偏好</h3>
+            <p class="na-me__prefs-hint">
+              偏好会作为 AI 问答的背景信息使用，不会改变任何营养数据；
+              营养数值始终来自数据库，不会因偏好而调整。
             </p>
-            <button type="button" class="na-btn na-me__danger-btn" @click="deleteDialogOpen = true">
-              删除我的个人数据
-            </button>
+            <dl class="na-me__prefs-list">
+              <div>
+                <dt>饮食目标</dt>
+                <dd>{{ goalText }}</dd>
+              </div>
+              <div>
+                <dt>忌口 / 规避</dt>
+                <dd>
+                  <template v-if="avoidList.length">
+                    <span v-for="item in avoidList" :key="item" class="na-me__tag">{{ item }}</span>
+                  </template>
+                  <template v-else>暂无数据</template>
+                </dd>
+              </div>
+            </dl>
+            <RouterLink class="na-btn na-btn--ghost" to="/me/settings">前往设置修改</RouterLink>
           </section>
         </div>
       </div>
     </template>
-
-    <ConfirmDialog
-      :open="deleteDialogOpen"
-      title="删除个人数据"
-      message="确认删除账号下的全部个人数据吗？包括收藏、偏好与会话记录，此操作不可撤销。"
-      confirm-text="确认删除"
-      danger
-      :loading="deleting"
-      @confirm="confirmDeleteData"
-      @cancel="deleteDialogOpen = false"
-    />
   </div>
 </template>
 
@@ -326,48 +260,60 @@ onMounted(async () => {
   gap: var(--na-space-4, 16px);
 }
 
-.na-me__form-card,
-.na-me__danger {
+.na-me__prefs {
   padding: var(--na-space-4, 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--na-space-3, 12px);
 }
 
 .na-me__section-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 var(--na-space-3, 12px);
+  margin: 0;
   font-size: 15px;
   font-weight: 600;
 }
 
-.na-me__form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--na-space-3, 12px);
-  max-width: 420px;
-}
-
-.na-me__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.na-me__field label {
-  font-size: 13px;
-  color: var(--na-color-text-muted, #6b7280);
-}
-
-.na-me__danger-desc {
-  margin: 0 0 var(--na-space-3, 12px);
+.na-me__prefs-hint {
+  margin: 0;
   font-size: 13px;
   line-height: 1.7;
   color: var(--na-color-text-muted, #6b7280);
 }
 
-.na-me__danger-btn {
-  background: var(--na-color-danger, #ef4444);
-  color: #ffffff;
+.na-me__prefs-list {
+  width: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.na-me__prefs-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--na-space-3, 12px);
+}
+
+.na-me__prefs-list dt {
+  color: var(--na-color-text-muted, #6b7280);
+}
+
+.na-me__prefs-list dd {
+  margin: 0;
+  text-align: right;
+}
+
+.na-me__tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--na-color-surface-muted, #f3f4f6);
 }
 
 @media (max-width: 860px) {

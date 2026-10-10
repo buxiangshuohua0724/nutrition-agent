@@ -8,15 +8,65 @@
 import { get } from './client'
 import {
   DEMO_CATEGORIES,
+  DEMO_DEFAULT_VARIANT,
   DEMO_FEATURED,
   DEMO_FOODS,
-  DEMO_FOOD_DETAIL,
-  DEMO_NUTRITION_TABLE,
-  DEMO_NUTRITION_TABLE_COOKED,
+  DEMO_FOOD_DETAILS_BY_ID,
+  DEMO_NUTRITION_TABLES_BY_VARIANT,
   demoClone,
   withDemo,
-  withEmptyPageFallback,
 } from './demo-data'
+
+/**
+ * 把数组切成契约里的分页结构。
+ *
+ * 只做分页计数，**不碰任何营养数值**。
+ *
+ * @param {Array<object>} items 全量条目
+ * @param {number} page 页码，从 1 开始
+ * @param {number} pageSize 每页条数
+ * @returns {{list: Array<object>, page: number, pageSize: number, total: number, totalPages: number}}
+ */
+function paginate(items, page, pageSize) {
+  const total = items.length
+  const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0
+  const start = (page - 1) * pageSize
+  return {
+    list: items.slice(start, start + pageSize),
+    page,
+    pageSize,
+    total,
+    totalPages,
+  }
+}
+
+/** 是否为空值（null / undefined / 空串） */
+function isBlank(value) {
+  return value === null || value === undefined || value === ''
+}
+
+/**
+ * 演示态的食品检索，复刻后端的匹配口径：
+ * 标准名、英文名、别名、食品编码，全部不区分大小写。
+ *
+ * @param {{keyword?: string, categoryId?: number|null}} params
+ * @returns {Array<object>} 命中的 FoodSummary
+ */
+function matchDemoFoods({ keyword = '', categoryId = null } = {}) {
+  const kw = String(keyword || '').trim().toLowerCase()
+  return DEMO_FOODS.filter((food) => {
+    if (!isBlank(categoryId) && Number(food.categoryId) !== Number(categoryId)) return false
+    if (!kw) return true
+    const detail = DEMO_FOOD_DETAILS_BY_ID[food.id]
+    const haystack = [
+      food.name,
+      food.enName,
+      food.code,
+      ...((detail && detail.aliases) || []).map((item) => item.alias),
+    ]
+    return haystack.some((text) => String(text || '').toLowerCase().includes(kw))
+  })
+}
 
 /**
  * 分类列表（含食品数量）。
@@ -49,10 +99,21 @@ export function getCategories(options = {}) {
  */
 export async function getCategoryFoods(slug, params = {}, options = {}) {
   const { page = 1, pageSize = 20 } = params
-  return withEmptyPageFallback(
+  return withDemo(
     () => get(`/categories/${encodeURIComponent(slug)}/foods`, { page, pageSize }, options),
-    { page, pageSize },
+    () => paginate(matchDemoFoods({ categoryId: categoryIdOfSlug(slug) }), page, pageSize),
   )
+}
+
+/**
+ * slug → 分类 id（演示态用）。
+ * 未知 slug 返回一个不可能匹配的值，让结果为空而不是"整个食品库"。
+ * @param {string} slug
+ * @returns {number}
+ */
+function categoryIdOfSlug(slug) {
+  const matched = DEMO_CATEGORIES.find((item) => String(item.slug) === String(slug))
+  return matched ? matched.id : -1
 }
 
 /**
@@ -75,11 +136,39 @@ export async function getCategoryFoods(slug, params = {}, options = {}) {
  */
 export async function searchFoods(params = {}, options = {}) {
   const { keyword = '', categoryId = null, page = 1, pageSize = 20, sort = 'relevance' } = params
-  const result = await withEmptyPageFallback(
+  const result = await withDemo(
     () => get('/foods/search', { keyword, categoryId, page, pageSize, sort }, options),
-    { page, pageSize },
+    () => paginate(sortDemoFoods(matchDemoFoods({ keyword, categoryId }), sort), page, pageSize),
   )
   return { ...result, keyword }
+}
+
+/**
+ * 演示态排序。与契约 4.2 的 `sort` 取值一致，`relevance` 保持食品清单原序
+ * （演示数据没有相关度评分，不臆造一个）。
+ *
+ * @param {Array<object>} items
+ * @param {string} sort
+ * @returns {Array<object>} 新数组
+ */
+function sortDemoFoods(items, sort) {
+  const list = items.slice()
+  if (sort === 'name') {
+    return list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hans-CN'))
+  }
+  if (sort === 'energyAsc' || sort === 'energyDesc') {
+    const dir = sort === 'energyAsc' ? 1 : -1
+    // 能量缺失（null）的条目一律排在最后，绝不当成 0 参与排序
+    return list.sort((a, b) => {
+      const left = a.energyKcal === null || a.energyKcal === undefined ? null : Number(a.energyKcal)
+      const right = b.energyKcal === null || b.energyKcal === undefined ? null : Number(b.energyKcal)
+      if (left === null && right === null) return 0
+      if (left === null) return 1
+      if (right === null) return -1
+      return (left - right) * dir
+    })
+  }
+  return list
 }
 
 /**
@@ -97,24 +186,12 @@ export function getFoodDetail(id, options = {}) {
   return withDemo(
     () => get(`/foods/${encodeURIComponent(id)}`, undefined, options),
     () => {
-      // 演示详情原型只对应西红柿；若用户访问的是别的食品，
-      // 先用演示摘要列表里的同名食品覆盖**纯标识与文本字段**，
-      // 使其与 `/food/:id` 一致。营养数值一律不在此处改动。
+      // 演示数据集与种子库一一对应，能按 id 精确命中；命中不了就退到默认演示对象，
+      // 但**只覆盖标识字段**，绝不改动任何营养数值。
       const requested = Number(id)
-      const summary = DEMO_FOODS.find((food) => Number(food.id) === requested)
-      const overrides = { id: requested || DEMO_FOOD_DETAIL.id }
-      if (summary) {
-        overrides.code = summary.code
-        overrides.name = summary.name
-        overrides.enName = summary.enName
-        overrides.intro = summary.intro
-        overrides.category = {
-          id: summary.categoryId,
-          name: summary.categoryName,
-          slug: summary.categorySlug,
-        }
-      }
-      return demoClone(DEMO_FOOD_DETAIL, overrides)
+      const matched = DEMO_FOOD_DETAILS_BY_ID[requested]
+      if (matched) return demoClone(matched)
+      return demoClone(DEMO_FOOD_DETAILS_BY_ID[12], { id: requested || 12 })
     },
   )
 }
@@ -137,14 +214,20 @@ export function getFoodNutrition(id, params = {}, options = {}) {
   return withDemo(
     () => get(`/foods/${encodeURIComponent(id)}/nutrition`, { variantId }, options),
     () => {
-      // 演示数据含两个形态，按请求的 variantId 选取；未指定时用默认形态
-      const isCooked = String(variantId) === String(DEMO_NUTRITION_TABLE_COOKED.variantId)
-      const base = isCooked ? DEMO_NUTRITION_TABLE_COOKED : DEMO_NUTRITION_TABLE
-      const overrides = { foodId: Number(id) || base.foodId }
-      if (variantId !== null && variantId !== undefined && variantId !== '') {
-        overrides.variantId = Number(variantId) || base.variantId
+      const foodId = Number(id)
+      const requested = variantId === null || variantId === undefined || variantId === '' ? null : Number(variantId)
+      // 演示数据集覆盖种子库全部 37 个形态，能按 variantId 精确命中。
+      const table =
+        (requested !== null ? DEMO_NUTRITION_TABLES_BY_VARIANT[requested] : null) ||
+        DEMO_NUTRITION_TABLES_BY_VARIANT[DEMO_DEFAULT_VARIANT[foodId]] ||
+        null
+      if (!table) {
+        // 没有对应形态的数据是**真实状态**（而不是"拿别的食品的数据顶上"）。
+        // 返回 null，让调用方按 NUTRITION_NOT_FOUND 的分支渲染「暂无数据」。
+        return null
       }
-      return demoClone(base, overrides)
+      // 只覆盖纯标识字段，营养数值一律来自演示数据集
+      return demoClone(table, { foodId: foodId || table.foodId })
     },
   )
 }

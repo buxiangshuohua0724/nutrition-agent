@@ -13,422 +13,195 @@
  */
 
 import { withDemoFallback, withEmptyPageFallback } from '../utils/dev'
+import {
+  DEMO_CATEGORY_LIST,
+  DEMO_DEFAULT_VARIANT,
+  DEMO_FOOD_DETAILS,
+  DEMO_FOOD_LIST,
+  DEMO_NUTRIENT_BY_CODE,
+  DEMO_NUTRIENT_BY_ID,
+  DEMO_NUTRITION_TABLES,
+} from './demo-dataset'
 
 // 供 api 层统一从本模块引入分页兜底，避免各处直接依赖 utils/dev
 export { withEmptyPageFallback }
 
-/** 演示数据集来源（与契约 3.3 的 source 结构一致） */
-const DEMO_SOURCE = {
-  id: 1,
-  name: '演示数据集（不可用于对外发布）',
-  code: 'DEMO_DATASET',
-  sourceType: 'DEMO',
-  applicableScope: '仅用于流程验证',
-}
+/* =============================================================================
+ * 一、事实数据 —— 全部来自 `demo-dataset.js`（由 scripts/gen_demo_dataset.py 从
+ * 后端种子数据 `backend/src/main/resources/db/h2/data.sql` 生成）。
+ *
+ * 这一层**不允许手写**：手写就会和数据库各自漂移。曾经出现过「分类页写“蔬菜 12
+ * 种”、点进去却是空列表」以及「演示只有 10 条食品、好几个分类永远是空的」。
+ * 需要改演示数据时，改种子 SQL 再重新运行生成器。
+ * ========================================================================== */
 
-/** 生成营养行 */
-function row(order, code, name, group, status, unit, amount, displayText, source = null) {
+/** 分类列表（FoodCategory[]），foodCount 由食品清单统计得出 */
+export const DEMO_CATEGORIES = DEMO_CATEGORY_LIST
+
+/** 食品摘要列表（FoodSummary[]），与种子库 23 条食品一一对应 */
+export const DEMO_FOODS = DEMO_FOOD_LIST
+
+/** 详情表：foodId -> FoodDetail */
+export const DEMO_FOOD_DETAILS_BY_ID = DEMO_FOOD_DETAILS
+
+/** 营养表：variantId -> NutritionTable */
+export const DEMO_NUTRITION_TABLES_BY_VARIANT = DEMO_NUTRITION_TABLES
+
+/** foodId -> 默认形态 variantId */
+export { DEMO_DEFAULT_VARIANT }
+
+/** 营养素编码 -> 元数据（中文名 / 单位），界面显示编码字段时用它翻译 */
+export { DEMO_NUTRIENT_BY_CODE }
+
+/** 营养素 id -> 元数据（营养行里只带 id，展示前要翻成中文名） */
+export { DEMO_NUTRIENT_BY_ID }
+
+/**
+ * 兜底用的演示对象：种子库里 foodId=12 的**苹果**。
+ *
+ * 只在「请求的 id 在演示数据集里找不到」时使用（见 `frontend/src/api/foods.js`
+ * 的 `getFoodDetail`）。这里**不能**写成"默认演示对象是西红柿"——foodId 与食品名
+ * 的对应关系一律以种子数据为准，写错就会让详情页显示错食品的文案。
+ */
+export const DEMO_FOOD_DETAIL = DEMO_FOOD_DETAILS[12]
+
+/* =============================================================================
+ * 二、演示文案 —— 由人撰写，与种子数据无关。
+ * 只允许放"给人看的示例文本"（AI 回答、检索片段、用户资料…），
+ * 绝不允许放营养数值：所有数字必须来自上面的事实数据层。
+ * ========================================================================== */
+
+/**
+ * 首页「热门食品」的推荐顺序（按食品 code，见原型图板块 1）。
+ *
+ * 这是一份**展示编排**，不是数据：它只决定"先展示哪几个"，不改变任何字段。
+ * 种子库里的食品按 id 排序，前五个是蔬菜类，首页会显得单调；
+ * 原型图的热门食品横跨蔬菜/蛋类/水产/蔬菜/水果，所以这里显式给出顺序。
+ * 不在列表中的食品按原 order 排在其后，因此新增食品不会导致首页崩溃。
+ */
+const FEATURED_CODE_ORDER = [
+  'veg-tomato',
+  'egg-chicken-egg',
+  'aquatic-salmon',
+  'veg-broccoli',
+  'fruit-blueberry',
+]
+
+/** 热门食品（HomeView 用）：按上面的编排顺序取前若干个，数量由调用方限制。 */
+export const DEMO_FEATURED = DEMO_FOODS.slice().sort((a, b) => {
+  const left = FEATURED_CODE_ORDER.indexOf(a.code)
+  const right = FEATURED_CODE_ORDER.indexOf(b.code)
+  if (left === -1 && right === -1) return 0
+  if (left === -1) return 1
+  if (right === -1) return -1
+  return left - right
+})
+
+/**
+ * 生成 AI 回答（AgentAnswer 结构）。
+ *
+ * **关键约束**：回答正文里出现的每一个营养数值都必须来自种子数据。
+ * 早先这里写死了「脂肪与膳食纤维在演示数据集中标记为已知零值」「维生素 A、D、铁尚未录入」，
+ * 而种子数据里西红柿的脂肪是 0.2 g、膳食纤维 1.2 g、维生素 A 是 83 ug，
+ * 于是回答与同一页面下方的营养表自相矛盾。现在改为**逐项从营养表推导**：
+ * 已录入的只列举宏量营养素，缺失的按真实缺失清单说明，零值按真实零值清单说明。
+ *
+ * @param {number} foodId 食品 id
+ * @returns {object|null} AgentAnswer；食品或营养表不存在时返回 null
+ *
+ * 导出是为了让校验脚本能对**任意食品**复算一遍（`DEMO_AGENT_ANSWER` 只是 foodId=1 的实例）。
+ */
+export function buildDemoAnswer(foodId) {
+  const food = DEMO_FOOD_DETAILS[foodId]
+  const table = DEMO_NUTRITION_TABLES[DEMO_DEFAULT_VARIANT[foodId]]
+  if (!food || !table) return null
+  const rows = Array.isArray(table.rows) ? table.rows : []
+  const macroIds = [1, 2, 3, 4, 5] // 热量 / 蛋白质 / 脂肪 / 碳水化合物 / 膳食纤维
+  const macroText = rows
+    .filter((row) => macroIds.includes(row.nutrientId) && row.valueStatus !== 'MISSING')
+    .map((row) => `${row.nutrientName} ${row.displayText}`)
+    .join('、')
+  const missingNames = rows
+    .filter((row) => row.valueStatus === 'MISSING')
+    .map((row) => DEMO_NUTRIENT_BY_ID[row.nutrientId] && DEMO_NUTRIENT_BY_ID[row.nutrientId].name)
+    .filter(Boolean)
+  const zeroNames = rows
+    .filter((row) => row.valueStatus === 'ZERO')
+    .map((row) => DEMO_NUTRIENT_BY_ID[row.nutrientId] && DEMO_NUTRIENT_BY_ID[row.nutrientId].name)
+    .filter(Boolean)
+  const energy = rows.find((row) => row.nutrientId === 1)
+  const sections = [
+    `🍚 主要营养特点\n${food.name}（${table.variantLabel}，${table.referenceNote}）：${macroText}。`,
+  ]
+  if (energy) {
+    sections.push(
+      `📊 数据说明\n以上数值全部取自已录入的每 100g 参考值；页面下方的「营养事实」与这里同源。`,
+    )
+  }
+  if (zeroNames.length > 0) {
+    // 项名列表与说明之间用换行隔开：既好读，也让校验脚本能精确切出项名
+    // （写成「…Omega-3脂肪酸在数据集中经过确认」会连成一个词，无法逐项比对）
+    sections.push(`0️⃣ 已知零值\n${zeroNames.join('、')}\n在数据集中经过确认，确实为 0，与「暂无数据」含义不同。`)
+  }
+  if (missingNames.length > 0) {
+    sections.push(`⚠️ 需要注意\n${missingNames.join('、')}\n在本数据集中尚未录入，本次回答不给出这些项的数值。`)
+  } else {
+    sections.push('⚠️ 需要注意\n该形态的营养数据在本数据集中是完整的，没有缺项。')
+  }
   return {
-    nutrientId: order,
-    nutrientCode: code,
-    nutrientName: name,
-    groupCode: group,
-    displayOrder: order,
-    valueStatus: status,
-    unit,
-    amount,
-    displayText,
-    source,
+    answer: sections.join('\n\n'),
+    intent: 'NUTRITION_VALUE',
+    foodReferences: [
+      {
+        foodId,
+        name: food.name,
+        variantId: table.variantId,
+        variantLabel: table.variantLabel,
+        coverImageUrl: null,
+      },
+    ],
+    // 营养事实只列「已确定」的行，且数值原样搬运，不做任何换算或补齐
+    nutritionFacts: rows
+      .filter((row) => row.valueStatus !== 'MISSING' && macroIds.includes(row.nutrientId))
+      .slice(0, 4)
+      .map((row) => ({
+        foodName: food.name,
+        variantLabel: table.variantLabel,
+        nutrientName: row.nutrientName,
+        amount: row.amount,
+        unit: row.unit,
+        referenceNote: table.referenceNote,
+        sourceName: '演示数据集',
+      })),
+    recommendations: [
+      { text: '一般人群可作为日常食物摄入，注意膳食总量平衡', scope: '一般人群', basis: '膳食指南一般性原则' },
+    ],
+    warnings: [],
+    sources: [
+      { type: 'STRUCTURED_DATA', title: '演示数据集', refId: 'DEMO_DATASET', url: null },
+      {
+        // 引用必须指向种子库里真实存在的知识分块（doc=5《营养数据常见问题：
+        // 缺失值、零值与参考重量》，chunk_index=1「零值与缺失值的区别」）。
+        // 此前这里写的是并不存在的 KDOC_0007，属于「展示了不存在的引用」，已修正。
+        type: 'KNOWLEDGE',
+        title: '营养数据常见问题：缺失值、零值与参考重量',
+        refId: 'KDOC_0005#chunk1',
+        url: null,
+      },
+    ],
+    uncertainty:
+      missingNames.length > 0
+        ? [{ code: 'DATA_MISSING', text: `${missingNames.join('、')}尚未录入，未在回答中给出相关数值` }]
+        : [],
+    toolCalls: [{ tool: 'searchFood', args: { keyword: food.name }, success: true, durationMs: 12 }],
+    model: 'deterministic-stub',
+    latencyMs: 480,
+    degraded: false,
   }
 }
 
-/** 分类列表（slug 与 assets/categories/ 文件名规则对齐，见 utils/assets.js） */
-export const DEMO_CATEGORIES = [
-  { id: 1, name: '蔬菜', slug: 'vegetables', foodCount: 12 },
-  { id: 2, name: '水果', slug: 'fruits', foodCount: 8 },
-  { id: 3, name: '肉类', slug: 'meat', foodCount: 6 },
-  { id: 4, name: '水产', slug: 'aquatic', foodCount: 5 },
-  { id: 5, name: '蛋类', slug: 'eggs', foodCount: 3 },
-  { id: 6, name: '谷物', slug: 'grains', foodCount: 7 },
-  { id: 7, name: '乳制品', slug: 'dairy', foodCount: 4 },
-  { id: 8, name: '坚果', slug: 'nuts', foodCount: 5 },
-  { id: 9, name: '豆类', slug: 'legumes', foodCount: 6 },
-  { id: 10, name: '其他', slug: 'others', foodCount: 2 },
-]
-
-/** 食品摘要列表（FoodSummary 结构） */
-export const DEMO_FOODS = [
-  {
-    id: 12,
-    code: 'VEG_TOMATO',
-    name: '西红柿',
-    enName: 'Tomato',
-    categoryId: 1,
-    categoryName: '蔬菜',
-    categorySlug: 'vegetables',
-    coverImageUrl: null,
-    intro: '又称番茄，富含维生素 C、番茄红素与钾，可生食也可熟食。',
-    defaultVariantId: 21,
-    energyKcal: 15,
-    energyAvailable: true,
-    tags: ['蔬菜'],
-  },
-  {
-    id: 13,
-    code: 'VEG_CUCUMBER',
-    name: '黄瓜',
-    enName: 'Cucumber',
-    categoryId: 1,
-    categoryName: '蔬菜',
-    categorySlug: 'vegetables',
-    coverImageUrl: null,
-    intro: '水分含量高，热量低，常作凉拌或生食。',
-    defaultVariantId: 22,
-    energyKcal: 16,
-    energyAvailable: true,
-    tags: ['蔬菜'],
-  },
-  {
-    id: 14,
-    code: 'VEG_SPINACH',
-    name: '菠菜',
-    enName: 'Spinach',
-    categoryId: 1,
-    categoryName: '蔬菜',
-    categorySlug: 'vegetables',
-    coverImageUrl: null,
-    intro: '富含叶酸、维生素 K 与铁，建议焯水后食用。',
-    defaultVariantId: 23,
-    energyKcal: 24,
-    energyAvailable: true,
-    tags: ['蔬菜'],
-  },
-  {
-    id: 15,
-    code: 'VEG_CARROT',
-    name: '胡萝卜',
-    enName: 'Carrot',
-    categoryId: 1,
-    categoryName: '蔬菜',
-    categorySlug: 'vegetables',
-    coverImageUrl: null,
-    intro: '富含 β-胡萝卜素，油脂同烹有利于吸收。',
-    defaultVariantId: 24,
-    energyKcal: null,
-    energyAvailable: false,
-    tags: ['蔬菜'],
-  },
-  {
-    id: 41,
-    code: 'FRUIT_APPLE',
-    name: '苹果',
-    enName: 'Apple',
-    categoryId: 2,
-    categoryName: '水果',
-    categorySlug: 'fruits',
-    coverImageUrl: null,
-    intro: '含果胶与多种抗氧化物质，是常见日常水果。',
-    defaultVariantId: 51,
-    energyKcal: 53,
-    energyAvailable: true,
-    tags: ['水果'],
-  },
-  {
-    id: 42,
-    code: 'FRUIT_BANANA',
-    name: '香蕉',
-    enName: 'Banana',
-    categoryId: 2,
-    categoryName: '水果',
-    categorySlug: 'fruits',
-    coverImageUrl: null,
-    intro: '钾含量较高，碳水以果糖与葡萄糖为主。',
-    defaultVariantId: 52,
-    energyKcal: 93,
-    energyAvailable: true,
-    tags: ['水果'],
-  },
-  {
-    id: 61,
-    code: 'MEAT_CHICKEN_BREAST',
-    name: '鸡胸肉',
-    enName: 'Chicken breast',
-    categoryId: 3,
-    categoryName: '肉类',
-    categorySlug: 'meat',
-    coverImageUrl: null,
-    intro: '高蛋白低脂肪的白肉，常见健身食材。',
-    defaultVariantId: 71,
-    energyKcal: 133,
-    energyAvailable: true,
-    tags: ['肉类'],
-  },
-  {
-    id: 81,
-    code: 'SEAFOOD_SALMON',
-    name: '三文鱼',
-    enName: 'Salmon',
-    categoryId: 4,
-    categoryName: '水产',
-    categorySlug: 'aquatic',
-    coverImageUrl: null,
-    intro: '富含 EPA / DHA 等 n-3 多不饱和脂肪酸。',
-    defaultVariantId: 91,
-    energyKcal: 139,
-    energyAvailable: true,
-    tags: ['水产'],
-  },
-  {
-    id: 101,
-    code: 'GRAIN_OAT',
-    name: '燕麦',
-    enName: 'Oat',
-    categoryId: 6,
-    categoryName: '谷物',
-    categorySlug: 'grains',
-    coverImageUrl: null,
-    intro: '含 β-葡聚糖等可溶性膳食纤维。',
-    defaultVariantId: 111,
-    energyKcal: 338,
-    energyAvailable: true,
-    tags: ['谷物'],
-  },
-  {
-    id: 121,
-    code: 'NUT_WALNUT',
-    name: '核桃',
-    enName: 'Walnut',
-    categoryId: 8,
-    categoryName: '坚果',
-    categorySlug: 'nuts',
-    coverImageUrl: null,
-    intro: '脂肪以多不饱和脂肪酸为主，热量密度高。',
-    defaultVariantId: 131,
-    energyKcal: 646,
-    energyAvailable: true,
-    tags: ['坚果'],
-  },
-]
-
-/** 热门食品（HomeView 用，最多取 5 个） */
-export const DEMO_FEATURED = DEMO_FOODS.slice(0, 5)
-
-/** 食品详情（FoodDetail 结构） */
-export const DEMO_FOOD_DETAIL = {
-  id: 12,
-  code: 'VEG_TOMATO',
-  name: '西红柿',
-  enName: 'Tomato',
-  scientificName: 'Solanum lycopersicum',
-  category: { id: 1, name: '蔬菜', slug: 'vegetables' },
-  aliases: [
-    { alias: '番茄', aliasType: 'COLLOQUIAL' },
-    { alias: 'tomato', aliasType: 'ENGLISH' },
-  ],
-  intro: '西红柿又称番茄，是茄科茄属的一年生草本植物果实，可生食、煮食或加工成酱。',
-  commonUsage: '常用于凉拌、快炒、煮汤；加热并配合少量油脂有利于番茄红素吸收。',
-  origin: '原产于南美洲西部，现世界各地广泛栽培。',
-  storageMethod: '常温阴凉处短期存放；成熟果实可冷藏 3~5 天，避免与叶菜同层挤压。',
-  suitableFor: '一般人群均可食用，可作为日常蔬菜摄入。',
-  cautions: '胃食管反流或胃酸偏多者空腹大量生食可能不适。',
-  images: [
-    {
-      id: 101,
-      url: null,
-      thumbUrl: null,
-      imageType: 'RAW_MATERIAL',
-      caption: '新鲜西红柿',
-      sourceNote: '项目自绘示意图',
-      licenseNote: 'CC0 / 项目自制',
-      isCover: true,
-      sortOrder: 0,
-    },
-    {
-      id: 102,
-      url: null,
-      thumbUrl: null,
-      imageType: 'PRODUCT',
-      caption: '切面示意',
-      sourceNote: '项目自绘示意图',
-      licenseNote: 'CC0 / 项目自制',
-      isCover: false,
-      sortOrder: 1,
-    },
-  ],
-  variants: [
-    {
-      id: 21,
-      state: 'RAW',
-      stateLabel: '生',
-      cookingMethod: null,
-      nameSuffix: '（生，可食部）',
-      edibleRatio: 0.94,
-      description: '新鲜生食',
-      isDefault: true,
-    },
-    {
-      id: 22,
-      state: 'COOKED',
-      stateLabel: '熟',
-      cookingMethod: 'BOILED',
-      nameSuffix: '（煮）',
-      edibleRatio: 1,
-      description: '水煮后',
-      isDefault: false,
-    },
-  ],
-  dataUpdatedAt: '2026-10-10T12:00:00',
-  publishStatus: 'PUBLISHED',
-}
-
-/** 营养表（NutritionTable 结构，含 PRESENT / ZERO / MISSING 三态） */
-export const DEMO_NUTRITION_TABLE = {
-  variantId: 21,
-  foodId: 12,
-  foodName: '西红柿',
-  variantLabel: '生（可食部）',
-  referenceAmount: 100,
-  referenceUnit: 'g',
-  referenceNote: '每 100g 可食部',
-  rows: [
-    row(1, 'ENERGY', '热量', 'MACRO', 'PRESENT', 'kcal', 15, '15 kcal', DEMO_SOURCE),
-    row(2, 'PROTEIN', '蛋白质', 'MACRO', 'PRESENT', 'g', 0.9, '0.9 g', DEMO_SOURCE),
-    row(3, 'FAT', '脂肪', 'MACRO', 'ZERO', 'g', 0, '0 g', DEMO_SOURCE),
-    row(4, 'CARBOHYDRATE', '碳水化合物', 'MACRO', 'PRESENT', 'g', 3.3, '3.3 g', DEMO_SOURCE),
-    row(5, 'DIETARY_FIBER', '膳食纤维', 'MACRO', 'ZERO', 'g', 0, '0 g', DEMO_SOURCE),
-    row(6, 'SODIUM', '钠', 'MINERAL', 'PRESENT', 'mg', 5, '5 mg', DEMO_SOURCE),
-    row(7, 'POTASSIUM', '钾', 'MINERAL', 'PRESENT', 'mg', 163, '163 mg', DEMO_SOURCE),
-    row(8, 'CALCIUM', '钙', 'MINERAL', 'PRESENT', 'mg', 10, '10 mg', DEMO_SOURCE),
-    row(9, 'VITAMIN_A', '维生素 A', 'VITAMIN', 'MISSING', 'ug', null, '暂无数据'),
-    row(10, 'VITAMIN_C', '维生素 C', 'VITAMIN', 'PRESENT', 'mg', 19, '19 mg', DEMO_SOURCE),
-    row(11, 'VITAMIN_D', '维生素 D', 'VITAMIN', 'MISSING', 'ug', null, '暂无数据'),
-    row(12, 'IRON', '铁', 'MINERAL', 'MISSING', 'mg', null, '暂无数据'),
-  ],
-  incomplete: true,
-  missingCount: 3,
-  dataUpdatedAt: '2026-10-10T12:00:00',
-}
-
-/** 另一形态（熟）的营养表，用于验证形态切换 */
-export const DEMO_NUTRITION_TABLE_COOKED = {
-  ...DEMO_NUTRITION_TABLE,
-  variantId: 22,
-  variantLabel: '煮（可食部）',
-  rows: [
-    row(1, 'ENERGY', '热量', 'MACRO', 'PRESENT', 'kcal', 17, '17 kcal', DEMO_SOURCE),
-    row(2, 'PROTEIN', '蛋白质', 'MACRO', 'PRESENT', 'g', 0.8, '0.8 g', DEMO_SOURCE),
-    row(3, 'FAT', '脂肪', 'MACRO', 'ZERO', 'g', 0, '0 g', DEMO_SOURCE),
-    row(4, 'CARBOHYDRATE', '碳水化合物', 'MACRO', 'PRESENT', 'g', 3.6, '3.6 g', DEMO_SOURCE),
-    row(5, 'DIETARY_FIBER', '膳食纤维', 'MACRO', 'PRESENT', 'g', 1.1, '1.1 g', DEMO_SOURCE),
-    row(6, 'SODIUM', '钠', 'MINERAL', 'PRESENT', 'mg', 6, '6 mg', DEMO_SOURCE),
-    row(7, 'POTASSIUM', '钾', 'MINERAL', 'PRESENT', 'mg', 179, '179 mg', DEMO_SOURCE),
-    row(8, 'CALCIUM', '钙', 'MINERAL', 'MISSING', 'mg', null, '暂无数据'),
-    row(9, 'VITAMIN_A', '维生素 A', 'VITAMIN', 'MISSING', 'ug', null, '暂无数据'),
-    row(10, 'VITAMIN_C', '维生素 C', 'VITAMIN', 'PRESENT', 'mg', 13, '13 mg', DEMO_SOURCE),
-    row(11, 'VITAMIN_D', '维生素 D', 'VITAMIN', 'MISSING', 'ug', null, '暂无数据'),
-    row(12, 'IRON', '铁', 'MINERAL', 'MISSING', 'mg', null, '暂无数据'),
-  ],
-  missingCount: 4,
-}
-
-/** 按重量计算结果（NutritionCalculation 结构） */
-export const DEMO_CALCULATION = {
-  foodId: 12,
-  foodName: '西红柿',
-  variantId: 21,
-  variantLabel: '生（可食部）',
-  inputWeight: 150,
-  inputUnit: 'g',
-  referenceAmount: 100,
-  referenceUnit: 'g',
-  items: [
-    {
-      nutrientCode: 'ENERGY',
-      nutrientName: '热量',
-      valueStatus: 'PRESENT',
-      originalAmount: 15,
-      computedAmount: 22.5,
-      unit: 'kcal',
-      formula: '15 kcal/100g × 150 g ÷ 100 = 22.5 kcal',
-    },
-    {
-      nutrientCode: 'PROTEIN',
-      nutrientName: '蛋白质',
-      valueStatus: 'PRESENT',
-      originalAmount: 0.9,
-      computedAmount: 1.35,
-      unit: 'g',
-      formula: '0.9 g/100g × 150 g ÷ 100 = 1.35 g',
-    },
-    {
-      nutrientCode: 'FAT',
-      nutrientName: '脂肪',
-      valueStatus: 'ZERO',
-      originalAmount: 0,
-      computedAmount: 0,
-      unit: 'g',
-      formula: '0 g/100g × 150 g ÷ 100 = 0 g',
-    },
-    {
-      nutrientCode: 'CARBOHYDRATE',
-      nutrientName: '碳水化合物',
-      valueStatus: 'PRESENT',
-      originalAmount: 3.3,
-      computedAmount: 4.95,
-      unit: 'g',
-      formula: '3.3 g/100g × 150 g ÷ 100 = 4.95 g',
-    },
-  ],
-  estimated: true,
-  estimatedReason: '基于每 100g 参考值的线性折算，未考虑烹饪损失',
-  missingNutrients: ['VITAMIN_A', 'VITAMIN_D', 'IRON'],
-  sources: [{ id: 1, name: '演示数据集（不可用于对外发布）', code: 'DEMO_DATASET' }],
-}
-
-/** AI 回答（AgentAnswer 结构） */
-export const DEMO_AGENT_ANSWER = {
-  answer:
-    '🍅 主要营养特点\n西红柿的水分含量高，热量较低，含有维生素 C、钾与一定量的膳食纤维。\n\n📊 数据说明\n每 100g 可食部的热量、蛋白质、碳水化合物的具体数值见下方「营养事实」。脂肪与膳食纤维在演示数据集中标记为已知零值。\n\n⚠️ 需要注意\n维生素 A、维生素 D、铁在本数据集中尚未录入，因此本次回答不给出这三项的数值。',
-  intent: 'NUTRITION_VALUE',
-  foodReferences: [
-    { foodId: 12, name: '西红柿', variantId: 21, variantLabel: '生（可食部）', coverImageUrl: null },
-  ],
-  nutritionFacts: [
-    {
-      foodName: '西红柿',
-      variantLabel: '生（可食部）',
-      nutrientName: '热量',
-      amount: 15,
-      unit: 'kcal',
-      referenceNote: '每 100g 可食部',
-      sourceName: '演示数据集',
-    },
-    {
-      foodName: '西红柿',
-      variantLabel: '生（可食部）',
-      nutrientName: '碳水化合物',
-      amount: 3.3,
-      unit: 'g',
-      referenceNote: '每 100g 可食部',
-      sourceName: '演示数据集',
-    },
-  ],
-  recommendations: [
-    { text: '一般人群可作为日常蔬菜摄入，注意总量平衡', scope: '一般人群', basis: '膳食指南一般性原则' },
-  ],
-  warnings: [{ level: 'INFO', text: '肾功能受限人群的钾摄入需遵医嘱' }],
-  sources: [
-    { type: 'STRUCTURED_DATA', title: '演示数据集', refId: 'DEMO_DATASET', url: null },
-    { type: 'KNOWLEDGE', title: '膳食纤维的作用', refId: 'KDOC_0007#chunk2', url: null },
-  ],
-  uncertainty: [
-    { code: 'DATA_MISSING', text: '该食品的部分维生素与矿物质数据尚未录入，未在回答中给出相关数值' },
-  ],
-  toolCalls: [{ tool: 'searchFood', args: { keyword: '西红柿' }, success: true, durationMs: 12 }],
-  model: 'deterministic-stub',
-  latencyMs: 480,
-  degraded: false,
-}
+/** AI 回答（演示用；默认对象是种子库里 id=1 的西红柿，与详情页演示对象一致） */
+export const DEMO_AGENT_ANSWER = buildDemoAnswer(1)
 
 /** 会话 */
 export const DEMO_SESSION = { id: 88, title: '西红柿的营养价值', createdAt: '2026-10-10T12:00:00' }
@@ -483,19 +256,23 @@ export const DEMO_RECOGNITION_MANUAL = {
 /** 知识库检索结果 */
 export const DEMO_KNOWLEDGE = [
   {
-    docId: 7,
-    chunkId: 23,
-    title: '膳食纤维的作用',
-    heading: '可溶性纤维',
-    snippet: '可溶性膳食纤维可延缓胃排空、降低餐后血糖上升速度，并有助于维持肠道菌群。',
-    category: 'NUTRIENT',
+    // 必须指向种子库里真实存在的知识分块：knowledge_doc.id = 5、
+    // knowledge_chunk.id = 14（doc=5 的第 1 号分块，chunk_index 从 0 起）。
+    // 引用展示的硬约束是「来源必须真实存在」，所以这里的 id 不允许臆造。
+    docId: 5,
+    chunkId: 14,
+    title: '营养数据常见问题：缺失值、零值与参考重量',
+    heading: '零值与缺失值的区别',
+    snippet:
+      '零值表示该项营养成分经过确认确实为零；缺失值表示尚未获得可靠数据。两者在数据库里用不同的状态标记区分，在页面上也应当有不同的呈现方式：零值可以正常参与求和与平均，缺失值则应排除在统计分母之外，并在界面提示数据不完整。',
+    category: 'DATA_QUALITY',
     score: 3.2,
     source: {
-      name: '演示知识条目',
-      publisher: '项目自制',
+      name: '《AI 食品营养师演示数据集（非真实来源）》',
+      publisher: '项目自制（演示占位）',
       version: 'v0.1',
       url: null,
-      applicableScope: '成人一般人群',
+      applicableScope: '成人一般人群（演示占位）',
     },
   },
 ]
@@ -511,21 +288,35 @@ export const DEMO_USER = {
   createdAt: '2026-10-10T12:00:00',
 }
 
-/** 后台食品列表行 */
-export const DEMO_ADMIN_FOODS = DEMO_FOODS.map((food, index) => ({
-  id: food.id,
-  code: food.code,
-  name: food.name,
-  categoryId: food.categoryId,
-  categoryName: food.categoryName,
-  coverImageUrl: food.coverImageUrl,
-  publishStatus: index % 4 === 3 ? 'DRAFT' : 'PUBLISHED',
-  reviewStatus: index % 4 === 3 ? 'PENDING' : 'APPROVED',
-  variantCount: 1,
-  nutrientFilledCount: 9,
-  nutrientMissingCount: 3,
-  updatedAt: '2026-10-10T12:00:00',
-}))
+/**
+ * 后台食品列表行。
+ *
+ * `variantCount` / `nutrientFilledCount` / `nutrientMissingCount` 一律**从演示数据集统计**，
+ * 不允许手写：早先这里给每条食品都写死「已填 9 项、缺 3 项」，与真实种子数据不符。
+ * 口径与后端一致：统计默认形态的 14 个营养素里 PRESENT/ZERO 与 MISSING 各多少。
+ * `publishStatus` / `reviewStatus` 属演示流程状态（种子库里的值另有含义），故按序构造。
+ */
+export const DEMO_ADMIN_FOODS = DEMO_FOODS.map((food, index) => {
+  const variantIds = Object.keys(DEMO_NUTRITION_TABLES)
+    .map(Number)
+    .filter((variantId) => DEMO_NUTRITION_TABLES[variantId].foodId === food.id)
+  const table = DEMO_NUTRITION_TABLES[DEMO_DEFAULT_VARIANT[food.id]]
+  const rows = table && Array.isArray(table.rows) ? table.rows : []
+  return {
+    id: food.id,
+    code: food.code,
+    name: food.name,
+    categoryId: food.categoryId,
+    categoryName: food.categoryName,
+    coverImageUrl: food.coverImageUrl,
+    publishStatus: index % 4 === 3 ? 'DRAFT' : 'PUBLISHED',
+    reviewStatus: index % 4 === 3 ? 'PENDING' : 'APPROVED',
+    variantCount: variantIds.length,
+    nutrientFilledCount: rows.filter((row) => row.valueStatus !== 'MISSING').length,
+    nutrientMissingCount: rows.filter((row) => row.valueStatus === 'MISSING').length,
+    updatedAt: '2026-10-10T12:00:00',
+  }
+})
 
 /**
  * 为请求包一层"演示数据兜底"。

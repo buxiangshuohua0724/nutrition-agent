@@ -82,7 +82,15 @@ const routes = [
     path: '/me/history',
     name: 'me-history',
     component: () => import('../views/HistoryView.vue'),
-    meta: { title: '浏览与对话历史', layout: 'default' },
+    meta: { title: '浏览历史', layout: 'default' },
+  },
+  {
+    // 「设置」是账号与个人数据管理，与「我的健康」不是同一件事，
+    // 因此有独立路由；此前底部菜单指向 `/me`，与主菜单同目标，点了没有反应。
+    path: '/me/settings',
+    name: 'me-settings',
+    component: () => import('../views/MeSettingsView.vue'),
+    meta: { title: '设置', layout: 'default' },
   },
   {
     path: '/login',

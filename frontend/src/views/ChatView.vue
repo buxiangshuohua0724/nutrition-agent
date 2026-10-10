@@ -100,12 +100,15 @@ async function submit(text) {
   const placeholder = appendThinkingPlaceholder()
   await scrollToBottom()
 
-  const { data, isDemoData: demo, error } = await chat({
-    sessionId: chatStore.sessionId,
-    question: content,
-    foodId: route.query.foodId || null,
-    weight: route.query.weight || null,
-  })
+  const { data, isDemoData: demo, error } = await chat(
+    {
+      sessionId: chatStore.sessionId,
+      question: content,
+      foodId: route.query.foodId || null,
+      weight: route.query.weight || null,
+    },
+    { silent: true },
+  )
 
   chatStore.thinking = false
 
@@ -138,17 +141,31 @@ async function submit(text) {
 }
 
 /**
- * 把 `uncertainty` 数组的每一项转成可读文本。
- * 契约里该项是对象 `{ code, text }`，直接插值会渲染成 `[object Object]`，
- * 因此这里只取后端给出的文本字段，取不到就退化为错误码，绝不自行编造说明。
- * @param {object|string} item 不确定性条目
+ * 把契约里的"带文案的对象"转成可读文本。
+ *
+ * `uncertainty[]` / `warnings[]` / `recommendations[]` 在契约 3.5 里都是对象
+ * （如 `{ text, scope, basis }`、`{ level, text }`），**直接插值会渲染成
+ * `[object Object]`**（历史上 warnings/recommendations 就踩过这个坑）。
+ * 这里只取后端给出的文本字段，取不到就退化为错误码/级别，
+ * 绝不自行编造一句说明文字。
+ *
+ * @param {object|string} item 数组条目
  * @returns {string}
  */
-function uncertaintyText(item) {
+function entryText(item) {
   if (item === null || item === undefined) return ''
   if (typeof item === 'string') return item
+  if (typeof item === 'number' || typeof item === 'boolean') return String(item)
   if (typeof item === 'object') {
-    return item.text || item.message || item.description || item.code || item.reason || ''
+    return (
+      item.text ||
+      item.message ||
+      item.description ||
+      item.title ||
+      item.code ||
+      item.reason ||
+      ''
+    )
   }
   return String(item)
 }
@@ -265,26 +282,26 @@ onMounted(async () => {
             >
               <strong>不确定性提示</strong>
               <ul>
-                <li v-for="(item, index) in message.structuredAnswer.uncertainty" :key="index">{{ uncertaintyText(item) }}</li>
+                <li v-for="(item, index) in message.structuredAnswer.uncertainty" :key="index">{{ entryText(item) }}</li>
               </ul>
             </div>
 
             <RichText :source="message.content" placeholder="（无内容）" />
 
-            <!-- 警告 -->
+            <!-- 警告：契约里是 `{ level, text }` 对象，必须取 text 渲染 -->
             <ul
               v-if="message.structuredAnswer && message.structuredAnswer.warnings && message.structuredAnswer.warnings.length > 0"
               class="na-chat__warnings"
             >
-              <li v-for="(item, index) in message.structuredAnswer.warnings" :key="index">{{ item }}</li>
+              <li v-for="(item, index) in message.structuredAnswer.warnings" :key="index">{{ entryText(item) }}</li>
             </ul>
 
-            <!-- 推荐 -->
+            <!-- 推荐：契约里是 `{ text, scope, basis }` 对象，必须取 text 渲染 -->
             <ul
               v-if="message.structuredAnswer && message.structuredAnswer.recommendations && message.structuredAnswer.recommendations.length > 0"
               class="na-chat__recommendations"
             >
-              <li v-for="(item, index) in message.structuredAnswer.recommendations" :key="index">{{ item }}</li>
+              <li v-for="(item, index) in message.structuredAnswer.recommendations" :key="index">{{ entryText(item) }}</li>
             </ul>
 
             <!-- 参考来源：原样渲染后端注入的 sources -->

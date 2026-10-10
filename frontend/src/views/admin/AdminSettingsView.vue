@@ -20,6 +20,7 @@ import NoticeBanner from '../../components/NoticeBanner.vue'
 import { getAdminUsers, getAuditLogs } from '../../api/admin'
 import { useAuthStore } from '../../stores/auth'
 import { formatDateTime, textOrPlaceholder } from '../../utils/format'
+import { roleLabels } from '../../utils/roles'
 import { pageMetaOf } from '../../utils/dev'
 
 const authStore = useAuthStore()
@@ -48,13 +49,6 @@ const logsPage = ref(1)
 const logsPagination = ref({ page: 1, pageSize: 20, total: 0, totalPages: 0 })
 const logsLoading = ref(false)
 const logsFailed = ref(false)
-
-/** 角色展示标签（仅用于展示，权限判断仍在后端） */
-const ROLE_LABELS = {
-  USER: '普通用户',
-  CONTENT_ADMIN: '内容管理员',
-  SYS_ADMIN: '系统管理员',
-}
 
 /** 加载用户列表 */
 async function loadUsers() {
@@ -146,7 +140,7 @@ function switchSection(value) {
 function roleText(row) {
   const list = row && Array.isArray(row.roles) ? row.roles : []
   if (list.length === 0) return '—'
-  return list.map((role) => ROLE_LABELS[role] || role).join('、')
+  return roleLabels(list)
 }
 
 onMounted(loadUsers)

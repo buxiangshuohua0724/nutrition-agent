@@ -28,8 +28,9 @@ export async function withDemoFallback(loader, demoFactory) {
     if (!isDemoFallbackEnabled) {
       return { data: null, isDemoData: false, error }
     }
-    // 开发模式下静默降级：错误已经由 client.js 弹过提示，这里只补一条控制台日志
-    console.info('[演示数据] 接口调用失败，已回退到内联演示数据：', error && error.message ? error.message : error)
+    // 开发模式下静默降级：调用方通常传 `{ silent: true }`，错误提示由页面内的
+    // 「演示数据」横幅统一说明；这里只补一条控制台日志，便于排查接口问题。
+    console.info('[演示数据] 接口调用失败，已回退到演示数据集：', error && error.message ? error.message : error)
     try {
       return { data: demoFactory(), isDemoData: true, error: null }
     } catch (factoryError) {

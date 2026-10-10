@@ -138,15 +138,36 @@ export function formatEnergyReference(energyKcal, referenceAmount = 100, referen
 }
 
 /**
+ * 把接口返回的时间值转成 Date。
+ *
+ * 兼容两种写法：ISO 8601（`2026-10-10T12:00:00`）与数据库风格
+ * （`2026-10-10 12:00:00`，空格分隔）。后者在部分浏览器（尤其是 Safari）
+ * 里 `new Date()` 会直接返回 Invalid Date，因此这里先规范化再解析。
+ *
+ * @param {string|number|Date|null|undefined} value
+ * @returns {Date|null} 无法解析时返回 null
+ */
+function toDate(value) {
+  if (value === null || value === undefined || value === '') return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(' ', 'T')
+    const parsed = new Date(normalized)
+    if (!Number.isNaN(parsed.getTime())) return parsed
+  }
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+/**
  * 格式化日期时间（ISO 字符串 → `2026-10-10 12:00`）。
  * @param {string|number|Date|null|undefined} value ISO 时间字符串或时间戳
  * @param {boolean} [withTime=true] 是否带时分
  * @returns {string} 空值返回「暂无数据」
  */
 export function formatDateTime(value, withTime = true) {
-  if (value === null || value === undefined || value === '') return MISSING_TEXT
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return MISSING_TEXT
+  const date = toDate(value)
+  if (!date) return MISSING_TEXT
   const pad = (n) => String(n).padStart(2, '0')
   const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
   if (!withTime) return datePart

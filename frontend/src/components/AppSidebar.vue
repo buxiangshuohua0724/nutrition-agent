@@ -12,6 +12,7 @@ import NavIcon from './NavIcon.vue'
 import { USER_MENU, USER_FOOTER_MENU } from '../router/menu.js'
 import { useAuthStore } from '../stores/auth.js'
 import { useFavoritesStore } from '../stores/favorites.js'
+import { primaryRoleLabel } from '../utils/roles.js'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -92,7 +93,7 @@ const favoriteBadge = computed(() => (favoritesStore.count > 0 ? String(favorite
       <div class="na-sidebar__user">
         <template v-if="authStore.isLoggedIn">
           <span class="na-sidebar__user-name">{{ authStore.displayName }}</span>
-          <span class="na-sidebar__user-role">{{ authStore.isAdmin ? '管理员账号' : '普通用户' }}</span>
+          <span class="na-sidebar__user-role">{{ primaryRoleLabel(authStore.user) }}</span>
         </template>
         <template v-else>
           <span class="na-sidebar__user-name">未登录</span>

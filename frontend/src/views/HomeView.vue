@@ -43,7 +43,9 @@ const entries = [
 async function loadFeatured() {
   loading.value = true
   loadFailed.value = false
-  const { data, isDemoData: demo, error } = await getFeaturedFoods({ type: 'hot', limit: 5 })
+  // 首页有演示数据兜底，接口不可用时不弹红色错误提示（否则会和下方的
+  // 黄色「演示数据」横幅同时出现，自相矛盾）。
+  const { data, isDemoData: demo, error } = await getFeaturedFoods({ type: 'hot', limit: 5 }, { silent: true })
   isDemoData.value = demo
   loadFailed.value = Boolean(error)
   featured.value = Array.isArray(data) ? data : []

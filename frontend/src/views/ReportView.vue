@@ -31,7 +31,7 @@ import EmptyState from '../components/EmptyState.vue'
 import NoticeBanner from '../components/NoticeBanner.vue'
 import SourceList from '../components/SourceList.vue'
 import { getFoodDetail, getFoodNutrition } from '../api/foods'
-import { calculateNutrition } from '../api/nutrition'
+import { calculateNutrition, nutrientNameOf } from '../api/nutrition'
 import { MISSING_TEXT, formatDateTime, formatNutrition, nutritionAmount } from '../utils/format'
 import { validateWeight } from '../utils/validators'
 
@@ -160,12 +160,19 @@ const primaryRows = computed(() =>
     const row = rowOf(code)
     return {
       code,
-      name: row ? row.nutrientName : code,
+      // 缺行时不能把内部编码（VITAMIN_A）端给用户，必须翻成中文名
+      name: row ? row.nutrientName : nutrientNameOf(code),
       text: row ? formatNutrition(row) : MISSING_TEXT,
       missing: !row || row.valueStatus === 'MISSING',
     }
   }),
 )
+
+/** 未参与折算的营养素（后端只给编码，展示前翻成中文名） */
+const missingNutrientText = computed(() => {
+  const list = calculation.value && Array.isArray(calculation.value.missingNutrients) ? calculation.value.missingNutrients : []
+  return list.map((code) => nutrientNameOf(code)).join('、')
+})
 
 /** 按重量折算的表格行 */
 const calculationItems = computed(() => (calculation.value && Array.isArray(calculation.value.items) ? calculation.value.items : []))
@@ -204,9 +211,10 @@ const reportTime = ref(new Date().toISOString())
 async function loadReport() {
   loading.value = true
   loadFailed.value = false
+  // 有演示数据兜底，接口不可用时不弹红色错误提示，只由页面内黄色横幅统一说明
   const [detailResult, nutritionResult] = await Promise.all([
-    getFoodDetail(foodId.value),
-    getFoodNutrition(foodId.value, {}),
+    getFoodDetail(foodId.value, { silent: true }),
+    getFoodNutrition(foodId.value, {}, { silent: true }),
   ])
   loading.value = false
   loadFailed.value = Boolean(detailResult.error || nutritionResult.error)
@@ -231,11 +239,14 @@ async function runCalculation() {
   }
   calcError.value = ''
   calcLoading.value = true
-  const { data, isDemoData: demo, error } = await calculateNutrition({
-    foodId: foodId.value,
-    weight: Number(weight.value),
-    weightUnit: 'g',
-  })
+  const { data, isDemoData: demo, error } = await calculateNutrition(
+    {
+      foodId: foodId.value,
+      weight: Number(weight.value),
+      weightUnit: 'g',
+    },
+    { silent: true },
+  )
   calcLoading.value = false
   if (demo) isDemoData.value = true
   if (error) {
@@ -279,7 +290,7 @@ onMounted(loadReport)
         v-if="isDemoData"
         variant="warning"
         title="演示数据"
-        message="后端接口当前不可用，以下营养数据为开发模式下的内联演示数据（固定为「西红柿 / 每 100g」那一套），可能与当前食品不一致，绝不能作为营养依据。"
+        message="后端接口当前不可用，以下营养数据为开发模式下的演示数据集（由后端种子数据生成，按当前食品与形态对应），绝不能作为营养依据。"
       />
 
       <!-- 报告头 -->
@@ -348,6 +359,9 @@ onMounted(loadReport)
           占比说明：优先使用后端返回的比例字段；没有时按「该营养素热量 ÷ 总热量」换算，
           其中蛋白质与碳水化合物按 4 kcal/g、脂肪按 9 kcal/g 计。任一项为「暂无数据」时占比显示
           「暂无数据」，不做 0 值兜底；后端给出的 0（ZERO）才显示 0%。
+          <strong>每一项都是独立指标，不应相加、也不要求之和等于 100%</strong>：
+          分子是按通用 Atwater 系数折算的，分母是数据库里直接测定的热量值，
+          两者口径不同；因此单项占比略微超过 100% 也属正常，不是数据错误。
         </p>
 
         <!-- 主要营养成分卡片 -->
@@ -399,7 +413,7 @@ onMounted(loadReport)
             v-if="calculation && calculation.missingNutrients && calculation.missingNutrients.length > 0"
             class="na-report__missing"
           >
-            以下营养素因缺少数据未参与折算：{{ calculation.missingNutrients.join('、') }}
+            以下营养素因缺少数据未参与折算：{{ missingNutrientText }}
           </div>
 
           <p class="na-report__calc-note">

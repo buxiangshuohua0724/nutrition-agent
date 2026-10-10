@@ -28,7 +28,8 @@ const loadFailed = ref(false)
 async function loadCategories() {
   loading.value = true
   loadFailed.value = false
-  const { data, isDemoData: demo, error } = await getCategories()
+  // 有演示数据兜底，接口不可用时不弹红色错误提示，只由页面内黄色横幅统一说明
+  const { data, isDemoData: demo, error } = await getCategories({ silent: true })
   loading.value = false
   isDemoData.value = demo
   loadFailed.value = Boolean(error)
