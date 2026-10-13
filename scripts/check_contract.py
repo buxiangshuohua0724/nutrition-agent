@@ -14,6 +14,7 @@
   F. docs/db/schema.sql 与 db/h2/schema.sql 的表/列结构比对（H2 侧允许
      JSON→VARCHAR、去 ENGINE/CHARSET 等已知差异，但**表名与列名必须完全一致**）
   G. 三态数据自检（MISSING 必须 amount IS NULL，ZERO 必须 amount = 0）
+  H. docs/db/data.sql（MySQL 部署种子）是否与 H2 种子逐字同步
 
 用法： python nutrition-agent/scripts/check_contract.py
 退出码： 0 = 全部通过；1 = 有不一致
@@ -567,6 +568,33 @@ else:
                         '引用文档状态提示: refId 引用的 doc %s「%s」review_status=%s publish_status=%s '
                         'deleted_at=%s —— 不处于「已审核且已发布」，该分块可能不会被检索返回'
                         % (d_id, d['title'], d['review'], d['publish'], d['deleted_at']))
+
+# ---- H. docs/db/data.sql（MySQL 部署种子）是否与 H2 种子同步 ----
+# docs/db/data.sql 由 scripts/gen_mysql_seed.py 从 H2 那份机械生成，不是第二份手写数据。
+# 两者漂移是真出过事的：MySQL 库里「有表无数据」时，注册会因
+#     INSERT INTO sys_user_role (user_id, role_id)  →  外键 fk_ur_role 失败
+# 而让 POST /auth/register 直接 500 —— 编译、单测、前端构建全都照常通过，
+# 只有真的去调注册接口才暴露。所以这里把它也变成一条能被自动发现的契约。
+MYSQL_DATA = os.path.join(ROOT, 'docs', 'db', 'data.sql')
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import gen_mysql_seed
+
+    expected_seed = gen_mysql_seed.build()
+    if not os.path.isfile(MYSQL_DATA):
+        problems.append('docs/db/data.sql 不存在：请运行 python scripts/gen_mysql_seed.py 生成')
+    else:
+        with open(MYSQL_DATA, 'r', encoding='utf-8') as fh:
+            if fh.read() != expected_seed:
+                problems.append(
+                    'docs/db/data.sql 与 H2 种子（backend/src/main/resources/db/h2/data.sql）不同步：'
+                    '请运行 python scripts/gen_mysql_seed.py 重新生成')
+            else:
+                notes.append('MySQL 部署种子（docs/db/data.sql）与 H2 种子逐字同步')
+except SystemExit as exc:
+    problems.append('无法从 H2 种子生成 MySQL 种子：%s' % exc)
+except Exception as exc:  # noqa: BLE001 —— 检查脚本自身出错也必须给出可读信息而不是堆栈
+    problems.append('校验 docs/db/data.sql 时出错：%r' % (exc,))
 
 # ---------------------------------------------------------------- 输出
 print('=' * 72)

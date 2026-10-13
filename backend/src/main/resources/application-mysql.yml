@@ -1,7 +1,14 @@
 # =============================================================================
 # mysql profile — 生产形态：MySQL 8.0
-# 启动：mvn spring-boot:run -Dspring-boot.run.profiles=mysql
-# 需先执行 docs/db/schema.sql 建表
+# 启动：mvn spring-boot:run '-Dspring-boot.run.profiles=mysql'
+#   （Windows PowerShell 下 -D 属性必须加引号，否则会被拆成两个参数并报
+#     Unknown lifecycle phase ".run.profiles=mysql"）
+# 需先建表、再灌种子，两步缺一不可：
+#   mysql -uroot -p nutrition_agent < docs/db/schema.sql
+#   mysql -uroot -p nutrition_agent < docs/db/data.sql
+# 本 profile 的 sql.init.mode 是 never —— 应用既不建表也不灌数据。只有表没有
+# 数据时，注册会因 sys_role 为空而撞上 sys_user_role 的外键 fk_ur_role（500）。
+# 口令经 NA_DB_PASSWORD 注入，仓库里不留明文。
 # =============================================================================
 spring:
   datasource:

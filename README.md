@@ -61,7 +61,9 @@ nutrition-agent/
 │  ├─ er-diagram.md         数据库 ER 图与实体关系
 │  ├─ api-contract.md       RESTful API 契约
 │  ├─ agent-design.md       Agent 工具、工作流与事实校验
-│  └─ db/schema.sql         建表 SQL（可执行）
+│  └─ db/
+│     ├─ schema.sql         建表 SQL（可执行）
+│     └─ data.sql           MySQL 种子数据（由脚本从 H2 种子生成，非手写）
 ├─ backend/                 Spring Boot 模块化单体
 │  └─ src/main/java/com/nutritionagent/
 │     ├─ common/            统一响应、异常、工具
@@ -91,7 +93,7 @@ nutrition-agent/
 
 ```bash
 cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+mvn spring-boot:run '-Dspring-boot.run.profiles=dev'
 # 服务地址 http://localhost:8080
 ```
 
@@ -121,11 +123,34 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ### 后端（MySQL）
 
 ```bash
+# 1) 建库建表
 mysql -uroot -p -e "CREATE DATABASE nutrition_agent DEFAULT CHARSET utf8mb4;"
 mysql -uroot -p nutrition_agent < docs/db/schema.sql
+
+# 2) 灌种子数据 —— 这一步不能省
+mysql -uroot -p nutrition_agent < docs/db/data.sql
+
+# 3) 启动（口令从环境变量注入，仓库里不留明文口令）
 cd backend
-mvn spring-boot:run
+export NA_DB_PASSWORD='<你的 MySQL 口令>'          # PowerShell: $env:NA_DB_PASSWORD='...'
+mvn spring-boot:run -Dspring-boot.run.profiles=mysql
 ```
+
+> ⚠️ **漏掉第 2 步会怎样**：`application-mysql.yml` 里 `sql.init.mode: never`，
+> 应用既不建表也不灌种子。只有表、没有数据时注册会失败 —— 注册要往
+> `sys_user_role` 插一条 `role_id = 1`（`UserService.USER_ROLE_ID`），而空的
+> `sys_role` 会让它撞上外键 `fk_ur_role`，`POST /auth/register` 直接 500。
+> 这**不会**在编译、单测、前端构建里暴露，只有真去调注册接口才会。
+>
+> `docs/db/data.sql` **不要手工编辑**：它由 `scripts/gen_mysql_seed.py` 从
+> `backend/src/main/resources/db/h2/data.sql` 生成，唯一差异是自增序列重置语句的写法
+> （H2 的 `ALTER TABLE t ALTER COLUMN id RESTART WITH n` ↔ MySQL 的 `ALTER TABLE t AUTO_INCREMENT = n`）。
+> 改了 H2 那份之后重新跑一次脚本即可；`scripts/check_contract.py` 会拦住不同步的提交。
+
+> 在 Windows PowerShell 下，`-D` 属性必须加引号。不加引号时 Maven 会把
+> `-Dspring-boot.run.profiles=mysql` 拆成 `-Dspring-boot` 和 `.run.profiles=mysql`
+> 两个参数，报 `Unknown lifecycle phase ".run.profiles=mysql"`。
+> 正确写法：`mvn spring-boot:run '-Dspring-boot.run.profiles=mysql'`。
 
 ### 前端
 
