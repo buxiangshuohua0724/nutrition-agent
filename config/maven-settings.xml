@@ -29,21 +29,27 @@
           xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
 
   <!--
-    为什么用项目内的 .m2repo 而不是 C:\Users\16148\.m2\repository：
-    DSH 文件沙箱在 workspace-write 模式下**禁止写入工作区之外的路径**，
-    Maven 解析插件时需要往本地仓库写 .lastUpdated / *.part.lock /
-    下载缺失的传递依赖，写到 C:\Users\16148\.m2 会被拒绝，报
-      ... plexus-utils-1.1.jar.part.lock (系统找不到指定的路径。)
-    而 Maven 又把这类失败报成"找不到构件"，把真正原因盖掉了。
+    localRepository 指向系统真实的 Maven 缓存 C:\Users\16148\.m2\repository。
 
-    因此本地仓库改为项目内的 .m2repo —— 它是 C:\Users\16148\.m2\repository
-    的完整副本（2.18 GB / 23666 个文件，robocopy /E 拷贝），Maven 可以自由写入。
-    这样 `mvn -s ../config/maven-settings.xml test` 才能跑通。
+    历史：本项目一度把 localRepository 指向项目内的 .m2repo（上面这个缓存的
+    2.18 GB 完整副本），原因是当时的 DSH 文件沙箱在 workspace-write 模式下
+    禁止写工作区之外的路径，Maven 往 C:\Users\16148\.m2 写
+    .lastUpdated / *.part.lock 会被拒绝
+      （... plexus-utils-1.1.jar.part.lock (系统找不到指定的路径。)），
+    而 Maven 又把这类失败包装成"找不到构件"，把真正原因盖掉了。
 
-    ⚠️ .m2repo 体积很大，务必写进 .gitignore，不要提交。
-    如需刷新：robocopy C:\Users\16148\.m2\repository .m2repo /E /MT:16
+    代价是那个副本落在项目目录里，内含 5730 个 .pom —— IntelliJ 会把它们当成
+    Maven 工程扫描并导入，Maven 面板因此被几百个 "Netty/BOM" 之类的节点塞满
+    （那是 netty-bom 各版本 pom 的 <name>，不是构建里的重复依赖）。
+    当前文件策略为 danger-full-access，沙箱不再限制工作区外写入，故改回系统缓存。
+
+    ⚠️ 若以后 DSH 又退回 workspace-write 模式，构建会因无法写
+    C:\Users\16148\.m2 而失败。那时把副本拷回来，并把下面这行改回
+    D:\ds_harness_work\nutrition-agent\.m2repo 即可：
+      robocopy C:\Users\16148\.m2\repository .m2repo /E /MT:16
+    （/.m2repo/ 已在 .gitignore 中，不会入库）
   -->
-  <localRepository>D:\ds_harness_work\nutrition-agent\.m2repo</localRepository>
+  <localRepository>C:\Users\16148\.m2\repository</localRepository>
 
   <mirrors>
     <!--

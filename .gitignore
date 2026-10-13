@@ -50,13 +50,14 @@ backend/data/
 *.trace.db
 
 # ===== 项目内 Maven 本地仓库（绝不入库）=====
-# config/maven-settings.xml 把 localRepository 指向 .m2repo，它是
-# C:\Users\16148\.m2\repository 的完整副本（2.18 GB / 23666 个文件）。
-# 之所以要复制进项目：DSH 文件沙箱在 workspace-write 模式下禁止写工作区之外的
-# 路径，Maven 无法往 C:\Users\16148\.m2 写 .lastUpdated / *.part.lock。
-# 它是纯粹的构建缓存，绝不应提交；换机器时用
+# config/maven-settings.xml 现在指向系统缓存 C:\Users\16148\.m2\repository，
+# 项目内不再有 .m2repo。保留这条忽略规则，是为 DSH 沙箱再次退回
+# workspace-write 模式（禁止写工作区之外）留的退路：那时把缓存副本拷回项目内
 #   robocopy C:\Users\16148\.m2\repository .m2repo /E /MT:16
-# 重新生成即可。
+# 并把 maven-settings.xml 的 <localRepository> 改回 .m2repo。
+# 那是个 2.18 GB 的构建缓存、内含 5730 个 .pom，一旦落回项目目录就会被 IDE
+# 当作 Maven 工程导入（Maven 面板被上百个 "Netty/BOM" 节点塞满），
+# 因此绝不应提交。
 /.m2repo/
 
 # ===== 脚本备份文件 =====

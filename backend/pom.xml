@@ -28,17 +28,21 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
     <!--
-      版本选择说明：本地仓库为项目内的 `../.m2repo`（见 ../config/maven-settings.xml），
-      它是 C:\Users\16148\.m2\repository 的完整副本，上述版本均已缓存，
+      版本选择说明：本地仓库为系统缓存 C:\Users\16148\.m2\repository
+      （见 ../config/maven-settings.xml），上述版本均已缓存，
       保证 `mvn -s ../config/maven-settings.xml` 在有网/无网时行为一致。
 
-      为什么不用全局 ~/.m2 + ~/.m2/settings.xml：
+      为什么必须显式带 -s ../config/maven-settings.xml，而不用全局 settings.xml：
         1) 全局 settings.xml 把 central 镜像到 id=alimaven 的 aliyun 地址，而离线缓存里
            _remote.repositories 记录的来源 id 是 central，Maven 会判定"从未从该仓库下载过"
            而拒绝使用缓存（报 has not been downloaded from it before）；
-        2) DSH 文件沙箱在 workspace-write 模式下禁止写工作区之外，Maven 无法往
-           C:\Users\16148\.m2 写入 .lastUpdated / *.part.lock，失败信息还会被 Maven
-           包装成"找不到构件"，掩盖真实原因。
+        2) 全局 settings.xml 的 <localRepository> 指向
+           C:\Users\16148\.maven\apache-maven-3.8.5\mvn_repo —— 一个几乎是空的目录，
+           真实缓存并不在那里。
+
+      注：本项目一度改用项目内的 ../.m2repo（上述缓存的 2.18 GB 副本），以绕开 DSH
+      沙箱在 workspace-write 模式下禁止写工作区之外的限制。那个副本内含 5730 个 .pom，
+      会被 IntelliJ 当作 Maven 工程导入、撑爆 Maven 面板，故已移除。
     -->
     <mybatis-plus.version>3.5.9</mybatis-plus.version>
     <h2.version>2.4.240</h2.version>
