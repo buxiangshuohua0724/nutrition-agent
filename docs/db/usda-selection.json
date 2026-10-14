@@ -1,0 +1,1963 @@
+{
+  "_comment": "由 scripts/gen_usda_nutrition.py --cache 生成，记录本项目实际选用的 USDA 条目与数值；nutrition-usda.sql 由本文件渲染而来，请勿手工编辑。",
+  "source": {
+    "code": "USDA-FDC",
+    "name": "《USDA FoodData Central》",
+    "publisher": "U.S. Department of Agriculture, Agricultural Research Service",
+    "version": "SR Legacy 2018-04 / Foundation Foods 2025-04-24",
+    "publish_date": "2018-04-01",
+    "url": "https://fdc.nal.usda.gov/",
+    "applicable_scope": "美国居民膳食（USDA 检测口径）；本项目仅用于为演示食品补入可核查的参考数值，不作中国居民膳食建议依据",
+    "note": "A 级判据满足情况：①国家级机构（USDA-ARS）发布 ②版本与发布日期明确（SR Legacy 2018-04、Foundation Foods 2025-04-24）③数据集附取样与检测方法学说明 ④以数据集官方发布文件核验（无 ISBN，为政府数据集）⑤适用范围为美国居民，故仅作参考数值来源，并在 applicable_scope 注明"
+  },
+  "usda_nutrient_ids": {
+    "ENERGY": 1008,
+    "PROTEIN": 1003,
+    "FAT": 1004,
+    "CARBOHYDRATE": 1005,
+    "DIETARY_FIBER": 1079,
+    "SODIUM": 1093,
+    "CALCIUM": 1087,
+    "IRON": 1089,
+    "POTASSIUM": 1092,
+    "VITAMIN_A": 1106,
+    "VITAMIN_C": 1162,
+    "VITAMIN_D": 1114,
+    "CHOLESTEROL": 1253
+  },
+  "omega3_rule": "总量 = ALA(1404，缺失时回退 1270) + EPA(1278) + DHA(1272) + DPA(1280)，单位与各分量一致（g/100g）",
+  "gaps": [
+    {
+      "food_code": "veg-tomato",
+      "state": "COOKED",
+      "cooking_method": "炒",
+      "reason": "USDA 只有 Tomatoes, red, ripe, cooked（炖煮），无炒制条目"
+    },
+    {
+      "food_code": "veg-carrot",
+      "state": "COOKED",
+      "cooking_method": "蒸",
+      "reason": "USDA 只有 Carrots, cooked, boiled, drained（水煮），无蒸制条目"
+    },
+    {
+      "food_code": "veg-broccoli",
+      "state": "COOKED",
+      "cooking_method": "蒸",
+      "reason": "USDA 只有 Broccoli, cooked, boiled, drained（水煮），无蒸制条目"
+    },
+    {
+      "food_code": "veg-onion",
+      "state": "COOKED",
+      "cooking_method": "炒",
+      "reason": "USDA 只有 Onions, cooked, boiled, drained（水煮），无炒制条目"
+    },
+    {
+      "food_code": "veg-eggplant",
+      "state": "COOKED",
+      "cooking_method": "炸",
+      "reason": "USDA 只有 Eggplant, cooked, boiled, drained（水煮），无炸制条目"
+    },
+    {
+      "food_code": "fruit-apple",
+      "state": "COOKED",
+      "cooking_method": "烤",
+      "reason": "USDA 只有脱水/干燥苹果，无烤制条目"
+    },
+    {
+      "food_code": "aquatic-bass",
+      "state": "COOKED",
+      "cooking_method": "蒸",
+      "reason": "USDA 只有 Fish, bass, striped, cooked, dry heat（干热），无蒸制条目"
+    },
+    {
+      "food_code": "nut-walnut",
+      "state": "COOKED",
+      "cooking_method": "烤",
+      "reason": "USDA 只有 Nuts, walnuts, english（生），无烤制条目"
+    },
+    {
+      "food_code": "meat-beef",
+      "state": "COOKED",
+      "cooking_method": "煮",
+      "reason": "USDA 只有 Beef, composite ... cooked（干热泛值），无炖煮条目"
+    }
+  ],
+  "picks": [
+    {
+      "food_code": "veg-tomato",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 170457,
+      "description": "Tomatoes, red, ripe, raw, year round average",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 18.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.88
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.2
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 3.89
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 1.2
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 5.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 10.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.27
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 237.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 42.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 13.7
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.003,
+          "omega3_parts": "ALA=0.003、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-cucumber",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 168409,
+      "description": "Cucumber, with peel, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 15.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.65
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.11
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 3.63
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 0.5
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 2.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 16.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.28
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 147.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 5.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 2.8
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.005,
+          "omega3_parts": "ALA=0.005、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-spinach",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 168462,
+      "description": "Spinach, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 23.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 2.86
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.39
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 3.63
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.2
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 79.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 99.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 2.71
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 558.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 469.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 28.1
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.138,
+          "omega3_parts": "ALA=0.138、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-carrot",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 170393,
+      "description": "Carrots, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 41.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.93
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.24
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 9.58
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.8
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 69.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 33.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.3
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 320.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 835.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 5.9
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.002,
+          "omega3_parts": "ALA=0.002、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-cabbage",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 170390,
+      "description": "Cabbage, chinese (pak-choi), raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 13.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 1.5
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.2
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 2.18
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 1.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 65.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 105.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.8
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 252.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 223.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 45.0
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.055,
+          "omega3_parts": "ALA=0.055、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-broccoli",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 170379,
+      "description": "Broccoli, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 34.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 2.82
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.37
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 6.64
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.6
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 33.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 47.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.73
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 316.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 31.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 89.2
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.063,
+          "omega3_parts": "ALA=0.063、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-potato",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 170026,
+      "description": "Potatoes, flesh and skin, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 77.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 2.05
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.09
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 17.5
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.1
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 6.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 12.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.81
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 425.0
+        },
+        "VITAMIN_A": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 19.7
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.01,
+          "omega3_parts": "ALA=0.01、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-onion",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 170000,
+      "description": "Onions, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 40.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 1.1
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.1
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 9.34
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 1.7
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 4.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 23.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.21
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 146.0
+        },
+        "VITAMIN_A": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 7.4
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.004,
+          "omega3_parts": "ALA=0.004、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-garlic",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 169230,
+      "description": "Garlic, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 149.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 6.36
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.5
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 33.1
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.1
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 17.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 181.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 1.7
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 401.0
+        },
+        "VITAMIN_A": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 31.2
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.02,
+          "omega3_parts": "ALA=0.02、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-eggplant",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 169228,
+      "description": "Eggplant, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 25.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.98
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.18
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 5.88
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 3.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 2.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 9.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.23
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 229.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 1.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 2.2
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.013,
+          "omega3_parts": "ALA=0.013、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "fruit-blueberry",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 171711,
+      "description": "Blueberries, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 57.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.74
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.33
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 14.5
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.4
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 1.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 6.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.28
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 77.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 3.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 9.7
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.058,
+          "omega3_parts": "ALA=0.058、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "fruit-apple",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 171688,
+      "description": "Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 52.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.26
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.17
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 13.8
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.4
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 1.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 6.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.12
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 107.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 3.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 4.6
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.009,
+          "omega3_parts": "ALA=0.009、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "fruit-banana",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 173944,
+      "description": "Bananas, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 89.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 1.09
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.33
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 22.8
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.6
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 1.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 5.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.26
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 358.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 3.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 8.7
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.027,
+          "omega3_parts": "ALA=0.027、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "fruit-grape",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 174683,
+      "description": "Grapes, red or green (European type, such as Thompson seedless), raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 69.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.72
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.16
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 18.1
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 0.9
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 2.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 10.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.36
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 191.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 3.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 3.2
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.011,
+          "omega3_parts": "ALA=0.011、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "fruit-orange",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 169097,
+      "description": "Oranges, raw, all commercial varieties",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 47.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 0.94
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.12
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 11.8
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.4
+        },
+        "SODIUM": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 40.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.1
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 181.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 11.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 53.2
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.007,
+          "omega3_parts": "ALA=0.007、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "meat-chicken-breast",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 171077,
+      "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 120.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 22.5
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 2.62
+        },
+        "CARBOHYDRATE": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 45.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 5.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.37
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 334.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 9.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 73.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.026,
+          "omega3_parts": "ALA=0.013、EPA=0.003、DHA=0.004、DPA=0.006"
+        }
+      }
+    },
+    {
+      "food_code": "meat-beef",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 169483,
+      "description": "Beef, composite of trimmed retail cuts, separable lean and fat, trimmed to 1/8\" fat, all grades, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 215.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 20.0
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 14.4
+        },
+        "CARBOHYDRATE": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 52.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 17.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 1.69
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 283.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 2.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "PRESENT",
+          "amount": 0.1
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 72.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.016,
+          "omega3_parts": "ALA=0.011、EPA=0、DHA=0、DPA=0.005"
+        }
+      }
+    },
+    {
+      "food_code": "aquatic-salmon",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 175167,
+      "description": "Fish, salmon, Atlantic, farmed, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 208.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 20.4
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 13.4
+        },
+        "CARBOHYDRATE": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 59.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 9.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.34
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 363.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 58.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 3.9
+        },
+        "VITAMIN_D": {
+          "status": "PRESENT",
+          "amount": 11.0
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 55.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 2.503,
+          "omega3_parts": "ALA=0.148、EPA=0.862、DHA=1.1、DPA=0.393"
+        }
+      }
+    },
+    {
+      "food_code": "aquatic-bass",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 171948,
+      "description": "Fish, bass, striped, raw",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 97.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 17.7
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 2.33
+        },
+        "CARBOHYDRATE": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 69.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 15.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.84
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 256.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 27.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "MISSING",
+          "amount": null
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 80.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.769,
+          "omega3_parts": "ALA=0.015、EPA=0.169、DHA=0.585、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "egg-chicken-egg",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 171287,
+      "description": "Egg, whole, raw, fresh",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 143.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 12.6
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 9.51
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 0.72
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 142.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 56.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 1.75
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 138.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 160.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "PRESENT",
+          "amount": 2.0
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 372.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.101,
+          "omega3_parts": "ALA=0.036、EPA=0、DHA=0.058、DPA=0.007"
+        }
+      }
+    },
+    {
+      "food_code": "grain-oat",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 169705,
+      "description": "Oats (Includes foods for USDA's Food Distribution Program)",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 389.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 16.9
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 6.9
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 66.3
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 10.6
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 2.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 54.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 4.72
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 429.0
+        },
+        "VITAMIN_A": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.111,
+          "omega3_parts": "ALA=0.111、EPA=NULL、DHA=NULL、DPA=NULL"
+        }
+      }
+    },
+    {
+      "food_code": "dairy-milk",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 171265,
+      "description": "Milk, whole, 3.25% milkfat, with added vitamin D",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 61.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 3.15
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 3.25
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 4.8
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 43.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 113.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.03
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 132.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 46.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "PRESENT",
+          "amount": 1.3
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 10.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.075,
+          "omega3_parts": "ALA=0.075、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "nut-walnut",
+      "state": "RAW",
+      "cooking_method": null,
+      "fdc_id": 170187,
+      "description": "Nuts, walnuts, english",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 654.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 15.2
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 65.2
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 13.7
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 6.7
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 2.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 98.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 2.91
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 441.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 1.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 1.3
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 9.08,
+          "omega3_parts": "ALA=9.08、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-spinach",
+      "state": "COOKED",
+      "cooking_method": "煮",
+      "fdc_id": 168463,
+      "description": "Spinach, cooked, boiled, drained, without salt",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 23.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 2.97
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.26
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 3.75
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 2.4
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 70.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 136.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 3.57
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 466.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 524.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 9.8
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.092,
+          "omega3_parts": "ALA=0.092、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "veg-potato",
+      "state": "COOKED",
+      "cooking_method": "煮",
+      "fdc_id": 170440,
+      "description": "Potatoes, boiled, cooked without skin, flesh, without salt",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 86.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 1.71
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 0.1
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 20.0
+        },
+        "DIETARY_FIBER": {
+          "status": "PRESENT",
+          "amount": 1.8
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 5.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 8.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.31
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 328.0
+        },
+        "VITAMIN_A": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 7.4
+        },
+        "VITAMIN_D": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "CHOLESTEROL": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.01,
+          "omega3_parts": "ALA=0.01、EPA=0、DHA=0、DPA=0"
+        }
+      }
+    },
+    {
+      "food_code": "meat-chicken-breast",
+      "state": "COOKED",
+      "cooking_method": "煮",
+      "fdc_id": 171478,
+      "description": "Chicken, broilers or fryers, breast, meat only, cooked, stewed",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 151.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 29.0
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 3.03
+        },
+        "CARBOHYDRATE": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 63.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 13.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.88
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 187.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 6.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "PRESENT",
+          "amount": 0.1
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 77.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.06,
+          "omega3_parts": "ALA=0.02、EPA=0.01、DHA=0.02、DPA=0.01"
+        }
+      }
+    },
+    {
+      "food_code": "aquatic-salmon",
+      "state": "COOKED",
+      "cooking_method": "烤",
+      "fdc_id": 175168,
+      "description": "Fish, salmon, Atlantic, farmed, cooked, dry heat",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 206.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 22.1
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 12.4
+        },
+        "CARBOHYDRATE": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 61.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 15.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 0.34
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 384.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 69.0
+        },
+        "VITAMIN_C": {
+          "status": "PRESENT",
+          "amount": 3.7
+        },
+        "VITAMIN_D": {
+          "status": "PRESENT",
+          "amount": 13.1
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 63.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 2.433,
+          "omega3_parts": "ALA=0.113、EPA=0.69、DHA=1.46、DPA=0.17"
+        }
+      }
+    },
+    {
+      "food_code": "egg-chicken-egg",
+      "state": "COOKED",
+      "cooking_method": "煮",
+      "fdc_id": 173424,
+      "description": "Egg, whole, cooked, hard-boiled",
+      "data_type": "SR Legacy",
+      "values": {
+        "ENERGY": {
+          "status": "PRESENT",
+          "amount": 155.0
+        },
+        "PROTEIN": {
+          "status": "PRESENT",
+          "amount": 12.6
+        },
+        "FAT": {
+          "status": "PRESENT",
+          "amount": 10.6
+        },
+        "CARBOHYDRATE": {
+          "status": "PRESENT",
+          "amount": 1.12
+        },
+        "DIETARY_FIBER": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "SODIUM": {
+          "status": "PRESENT",
+          "amount": 124.0
+        },
+        "CALCIUM": {
+          "status": "PRESENT",
+          "amount": 50.0
+        },
+        "IRON": {
+          "status": "PRESENT",
+          "amount": 1.19
+        },
+        "POTASSIUM": {
+          "status": "PRESENT",
+          "amount": 126.0
+        },
+        "VITAMIN_A": {
+          "status": "PRESENT",
+          "amount": 149.0
+        },
+        "VITAMIN_C": {
+          "status": "ZERO",
+          "amount": 0.0
+        },
+        "VITAMIN_D": {
+          "status": "PRESENT",
+          "amount": 2.2
+        },
+        "CHOLESTEROL": {
+          "status": "PRESENT",
+          "amount": 373.0
+        },
+        "OMEGA3": {
+          "status": "PRESENT",
+          "amount": 0.078,
+          "omega3_parts": "ALA=0.035、EPA=0.005、DHA=0.038、DPA=0"
+        }
+      }
+    }
+  ]
+}

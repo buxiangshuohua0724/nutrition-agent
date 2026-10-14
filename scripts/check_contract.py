@@ -15,6 +15,7 @@
      JSON→VARCHAR、去 ENGINE/CHARSET 等已知差异，但**表名与列名必须完全一致**）
   G. 三态数据自检（MISSING 必须 amount IS NULL，ZERO 必须 amount = 0）
   H. docs/db/data.sql（MySQL 部署种子）是否与 H2 种子逐字同步
+  I. docs/db/nutrition-usda.sql 是否与 docs/db/usda-selection.json 同步
 
 用法： python nutrition-agent/scripts/check_contract.py
 退出码： 0 = 全部通过；1 = 有不一致
@@ -595,6 +596,42 @@ except SystemExit as exc:
     problems.append('无法从 H2 种子生成 MySQL 种子：%s' % exc)
 except Exception as exc:  # noqa: BLE001 —— 检查脚本自身出错也必须给出可读信息而不是堆栈
     problems.append('校验 docs/db/data.sql 时出错：%r' % (exc,))
+
+# ---- I. docs/db/nutrition-usda.sql 是否与选样档案同步 ----
+# nutrition-usda.sql 由 scripts/gen_usda_nutrition.py 从 docs/db/usda-selection.json 渲染而来，
+# 不是第二份手写数据。选样档案记录「本项目到底抄了 USDA 的哪一条记录」及其数值（约 46KB，可入库），
+# 因此这条检查在**没有 200MB 原始数据集**的机器上也能跑。
+# 手工改 SQL 而不改档案（或反之）会让"数值出自哪条来源记录"说不清，而 nutrition_value 的
+# source_detail 正是靠它填的 —— 这正是 docs/data-source-policy.md 要求的可追溯率 100%。
+USDA_SQL = os.path.join(ROOT, 'docs', 'db', 'nutrition-usda.sql')
+USDA_SEL = os.path.join(ROOT, 'docs', 'db', 'usda-selection.json')
+try:
+    import json as _json  # noqa: PLC0415 —— 与生成器同目录，就地导入即可
+
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import gen_usda_nutrition
+
+    if not os.path.isfile(USDA_SEL):
+        problems.append('docs/db/usda-selection.json 不存在：'
+                        '请运行 python scripts/gen_usda_nutrition.py --cache <usda_cache.json>')
+    elif not os.path.isfile(USDA_SQL):
+        problems.append('docs/db/nutrition-usda.sql 不存在：'
+                        '请运行 python scripts/gen_usda_nutrition.py')
+    else:
+        with open(USDA_SEL, 'r', encoding='utf-8') as fh:
+            _sel = _json.load(fh)
+        with open(USDA_SQL, 'r', encoding='utf-8') as fh:
+            _actual = fh.read()
+        if _actual != gen_usda_nutrition.render(_sel):
+            problems.append('docs/db/nutrition-usda.sql 与 docs/db/usda-selection.json 不同步：'
+                            '请运行 python scripts/gen_usda_nutrition.py')
+        else:
+            notes.append('USDA 营养补丁（docs/db/nutrition-usda.sql）与选样档案逐字同步：'
+                         '%d 个形态 / %d 行'
+                         % (len(_sel['picks']),
+                            len(_sel['picks']) * len(gen_usda_nutrition.NUTRIENT_CODES)))
+except Exception as exc:  # noqa: BLE001
+    problems.append('校验 docs/db/nutrition-usda.sql 时出错：%r' % (exc,))
 
 # ---------------------------------------------------------------- 输出
 print('=' * 72)

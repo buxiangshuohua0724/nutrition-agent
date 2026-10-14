@@ -63,7 +63,9 @@ nutrition-agent/
 │  ├─ agent-design.md       Agent 工具、工作流与事实校验
 │  └─ db/
 │     ├─ schema.sql         建表 SQL（可执行）
-│     └─ data.sql           MySQL 种子数据（由脚本从 H2 种子生成，非手写）
+│     ├─ data.sql           MySQL 种子数据（由脚本从 H2 种子生成，非手写）
+│     ├─ nutrition-usda.sql 用 USDA 真实数值替换演示营养数值（脚本渲染，非手写）
+│     └─ usda-selection.json 上面那份补丁选用的 USDA 条目与数值（可核查、可重放）
 ├─ backend/                 Spring Boot 模块化单体
 │  └─ src/main/java/com/nutritionagent/
 │     ├─ common/            统一响应、异常、工具
@@ -130,7 +132,10 @@ mysql -uroot -p nutrition_agent < docs/db/schema.sql
 # 2) 灌种子数据 —— 这一步不能省
 mysql -uroot -p nutrition_agent < docs/db/data.sql
 
-# 3) 启动（口令从环境变量注入，仓库里不留明文口令）
+# 3) 可选但强烈建议：用 USDA 真实数值替换演示营养数值
+mysql -uroot -p nutrition_agent < docs/db/nutrition-usda.sql
+
+# 4) 启动（口令从环境变量注入，仓库里不留明文口令）
 cd backend
 export NA_DB_PASSWORD='<你的 MySQL 口令>'          # PowerShell: $env:NA_DB_PASSWORD='...'
 mvn spring-boot:run -Dspring-boot.run.profiles=mysql
@@ -146,6 +151,16 @@ mvn spring-boot:run -Dspring-boot.run.profiles=mysql
 > `backend/src/main/resources/db/h2/data.sql` 生成，唯一差异是自增序列重置语句的写法
 > （H2 的 `ALTER TABLE t ALTER COLUMN id RESTART WITH n` ↔ MySQL 的 `ALTER TABLE t AUTO_INCREMENT = n`）。
 > 改了 H2 那份之后重新跑一次脚本即可；`scripts/check_contract.py` 会拦住不同步的提交。
+
+> **第 3 步的 USDA 补丁是可选的，但建议执行**：种子里的 511 条营养数值全部来自
+> `DEMO-SEED`（《AI 食品营养师演示数据集（非真实来源）》）。该补丁把其中 **28 个形态 × 14 个营养素
+> = 392 行**换成 USDA FoodData Central 的真实数值，并单独登记来源 `USDA-FDC`；
+> 剩下 9 个熟制形态（蒸/炒/炸/烤等）因 USDA 没有烹饪方式一致的条目而**保持演示数据不动**，
+> 缺口清单写在 `docs/db/nutrition-usda.sql` 头部。补丁可重复执行（幂等）。
+>
+> `docs/db/nutrition-usda.sql` **不要手工编辑**：它由 `scripts/gen_usda_nutrition.py` 从
+> `docs/db/usda-selection.json` 渲染。改了选样档案后跑一次脚本即可；
+> 两者是否同步由 `scripts/check_contract.py` 的检查 I 拦住。
 
 > 在 Windows PowerShell 下，`-D` 属性必须加引号。不加引号时 Maven 会把
 > `-Dspring-boot.run.profiles=mysql` 拆成 `-Dspring-boot` 和 `.run.profiles=mysql`
