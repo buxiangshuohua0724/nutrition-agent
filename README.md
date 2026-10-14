@@ -124,22 +124,45 @@ mvn spring-boot:run '-Dspring-boot.run.profiles=dev'
 
 ### 后端（MySQL）
 
-```bash
+**PowerShell（Windows）**
+
+```powershell
+cd D:\ds_harness_work\nutrition-agent
+
 # 1) 建库建表
 mysql -uroot -p -e "CREATE DATABASE nutrition_agent DEFAULT CHARSET utf8mb4;"
-mysql -uroot -p nutrition_agent < docs/db/schema.sql
+mysql -uroot -p --default-character-set=utf8mb4 nutrition_agent -e "source docs/db/schema.sql"
 
 # 2) 灌种子数据 —— 这一步不能省
-mysql -uroot -p nutrition_agent < docs/db/data.sql
+mysql -uroot -p --default-character-set=utf8mb4 nutrition_agent -e "source docs/db/data.sql"
 
 # 3) 可选但强烈建议：用 USDA 真实数值替换演示营养数值
-mysql -uroot -p nutrition_agent < docs/db/nutrition-usda.sql
+mysql -uroot -p --default-character-set=utf8mb4 nutrition_agent -e "source docs/db/nutrition-usda.sql"
 
 # 4) 启动（口令从环境变量注入，仓库里不留明文口令）
 cd backend
-export NA_DB_PASSWORD='<你的 MySQL 口令>'          # PowerShell: $env:NA_DB_PASSWORD='...'
-mvn spring-boot:run -Dspring-boot.run.profiles=mysql
+$env:NA_DB_PASSWORD = '<你的 MySQL 口令>'
+mvn spring-boot:run '-Dspring-boot.run.profiles=mysql'
 ```
+
+> ⚠️ **PowerShell 里不能写 `< docs/db/schema.sql`**：`<` 在 PowerShell 中是保留给将来使用的
+> 运算符，会直接报 `ParserError: "<"运算符保留供将来使用`，命令根本不会执行。
+> 上面改用 mysql 客户端的 `source` 命令，好处是文件里的 utf8mb4 中文不会经过 PowerShell
+> 管道被重新编码。若确实偏好重定向写法，交给 cmd 即可：
+> `cmd /c "mysql -uroot -p nutrition_agent < docs\db\schema.sql"`。
+> **`--default-character-set=utf8mb4` 建议保留**，否则库里的中文会乱码。
+
+**bash / Git Bash（macOS、Linux）**
+
+```bash
+mysql -uroot -p nutrition_agent < docs/db/schema.sql
+mysql -uroot -p nutrition_agent < docs/db/data.sql
+mysql -uroot -p nutrition_agent < docs/db/nutrition-usda.sql
+```
+
+> ⚠️ **只有第 3 步可以重复执行**。`schema.sql` 与 `data.sql` 都不是幂等的：
+> 前者会因表已存在而报错，后者是纯 INSERT，在已有数据的库上会主键冲突。
+> 想从零重建就先 `DROP DATABASE nutrition_agent;`，再按 1→2→3 重来。
 
 > ⚠️ **漏掉第 2 步会怎样**：`application-mysql.yml` 里 `sql.init.mode: never`，
 > 应用既不建表也不灌种子。只有表、没有数据时注册会失败 —— 注册要往
